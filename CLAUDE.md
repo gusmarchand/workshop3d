@@ -51,7 +51,7 @@ Piège : Claude Code garde le schéma des outils en cache pour la session. Aprè
 
 Branche le MCP (voir le README), puis : `etat` pour voir le projet, `stock` pour les panneaux et leurs prix, `creer_meuble` ou `ajouter` pour les pièces, `verifier` pour les contrôles, `decoupe` pour le coût, `capture` pour voir le résultat. Quand un outil manque, ajoute-le au code plutôt que de contourner : c'est ainsi que le projet a grandi.
 
-Limites à connaître : le générateur de caisson ne fait pas les traverses hautes, la plinthe continue, les côtés entaillés ni les tiroirs de hauteurs différentes ; on les fait avec `ajouter`, et « modifier le meuble » les efface. Les pièces à la main n'ont pas d'identifiant de meuble.
+Un meuble sous plan de travail (buffet, meuble bas) se crée d'un appel : `dessus: 'traverses'`, `entailles`, `hTiroirs`, `facadesEgales`, `fondParColonne`, `epFondTiroir` et les matières `matiere_facade`, `matiere_caisse_tiroir` (voir `docs/ARCHITECTURE.md`). Ce qui sort de ces options se fait avec `ajouter`, et « modifier le meuble » l'efface : les pièces ajoutées à la main n'ont pas d'identifiant de meuble.
 
 ## Pièges connus
 

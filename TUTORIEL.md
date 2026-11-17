@@ -11,7 +11,8 @@ Panneau de droite, **Nouveau meuble…**
 3. Règle chaque colonne : **Étagères**, **Penderie** (étagère haute et tringle) ou **Tiroirs** (avec leurs façades, une tablette au-dessus).
 4. Coche **Portes en applique** si tu en veux. Au-delà de 600 mm de large, la colonne reçoit deux portes.
 5. Indique la **matière des panneaux** (par exemple « Mélaminé blanc 18 ») et celle du **fond** (par exemple « HDF 3 »).
-6. Clique **Créer**. Le message en bas du formulaire annonce le nombre de panneaux et la quincaillerie (charnières, coulisses, poignées, taquets, tringle). Si une cote est impossible, il le dit et le bouton reste grisé.
+6. Pour un meuble sous un plan de travail (buffet, meuble bas), choisis **Dessus : Deux traverses** (une plaque de moins), coche **Côtés entaillés, plinthe unique** pour une plinthe en retrait sur toute la largeur, et indique des **hauteurs de tiroirs** (par exemple `310, 310, 160`, de bas en haut). **Façades de même largeur** égalise portes et tiroirs, **Un fond par colonne** range mieux le fond dans un panneau.
+7. Clique **Créer**. Le message en bas du formulaire annonce le nombre de panneaux et la quincaillerie (charnières, coulisses, poignées, taquets, tringle). Si une cote est impossible, il le dit et le bouton reste grisé.
 
 ## 2. Le regarder
 

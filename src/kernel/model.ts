@@ -46,7 +46,9 @@ export interface Guide { id: number; p: V3; d: V3 }
 export interface Extra { id: number; nom: string; qte: number; prix: number; caisson?: number; auto?: boolean }
 // Caisson généré : ses paramètres sont gardés pour pouvoir le modifier et le regénérer.
 // `fond` : matière du fond du meuble (et des fonds de tiroir, sauf `fondTiroir`).
-export interface CaissonRec { id: number; params: CaissonParams; methode: number; fond?: string; fondTiroir?: string }
+// `facade` : matière des façades de portes et de tiroirs ; `caisseTiroir` : celle des côtés, devants et arrières de tiroir (sinon, celle du meuble).
+export interface CaissonRec { id: number; params: CaissonParams; methode: number; fond?: string; fondTiroir?: string; facade?: string; caisseTiroir?: string }
+export interface MatieresCaisson { fondTiroir?: string; facade?: string; caisseTiroir?: string }
 // `decouper` : une pièce plus grande que tous les panneaux est coupée en morceaux à assembler.
 export interface Reglages { trait: number; marge: number; decouper?: boolean }
 export const REGLAGES_DEFAUT: Reglages = { trait: 3, marge: 10, decouper: true };

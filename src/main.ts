@@ -26,7 +26,7 @@ import { regionAt, type P2, type Region, type Seg2 } from './kernel/arrangement'
 import { coutChant, refsDesPieces, syncFromModel, toCsv, totals, type DebitRow } from './kernel/debit';
 import { parse, serialize, type Saved } from './kernel/file';
 import { appliquerDecoupe, chutesDe, planDecoupe, type Bin } from './kernel/nesting';
-import { CAISSON_DEFAUT, MODELES, fixerLargeur, genererCaisson, verifier, videsColonnes, type CaissonParams, type TypeColonne } from './kernel/cabinet';
+import { CAISSON_DEFAUT, MODELES, fixerLargeur, genererCaisson, maillePanneau, verifier, videsColonnes, type CaissonParams, type TypeColonne } from './kernel/cabinet';
 
 // ───────── État ─────────
 let doc: Doc = emptyDoc();
@@ -2347,6 +2347,8 @@ let caissonP: CaissonParams = { ...CAISSON_DEFAUT, types: [...CAISSON_DEFAUT.typ
 let caissonMat = 'Mélaminé blanc 18';
 let caissonFondMat = 'HDF 3';
 let caissonFondTiroirMat = '';   // vide : comme le fond
+let caissonFacadeMat = '';       // vide : comme les panneaux (façades de portes et de tiroirs)
+let caissonCaisseTirMat = '';    // vide : comme les panneaux (côtés, devants et arrières de tiroir)
 let caissonEdit: number | null = null;
 // Matériau d'un nom : celui du projet, sinon un matériau courant (panneau et couleur du préréglage), sinon créé d'après le nom.
 function methodeNommee(nom: string, d: Doc = doc): number {
@@ -2376,11 +2378,19 @@ function renderCaisson() {
       ${CAISSON_CHAMPS.map(([k, label, u]) => `<label for="k-${k}">${label}${u ? ` (${u})` : ''}</label><input class="num" id="k-${k}" data-c="${k}" value="${caissonP[k]}">`).join('')}
       ${(() => { const v = videsColonnes(caissonP); return caissonP.types.map((t, i) => `<label for="k-t${i}">Colonne ${i + 1}</label><span class="row" style="flex-wrap:nowrap"><select id="k-t${i}" data-col="${i}" style="flex:1">${TYPES_COL.map(([val, l]) => `<option value="${val}" ${val === t ? 'selected' : ''}>${l}</option>`).join('')}</select>${v.length > 1 ? `<input class="num" style="width:70px" data-larg="${i}" value="${Math.round(v[i]!)}" title="Largeur intérieure en mm ; la colonne voisine compense">` : ''}</span>`).join(''); })()}
       <label for="k-portes">Portes en applique</label><input type="checkbox" id="k-portes" style="width:auto;justify-self:start" ${caissonP.portes ? 'checked' : ''}>
+      <label for="k-dessus" title="Sous un plan de travail, deux traverses suffisent : une plaque de moins.">Dessus</label><span class="row" style="flex-wrap:nowrap"><select id="k-dessus" style="flex:1"><option value="plein" ${caissonP.dessus === 'traverses' ? '' : 'selected'}>Panneau plein</option><option value="traverses" ${caissonP.dessus === 'traverses' ? 'selected' : ''}>Deux traverses</option></select>${caissonP.dessus === 'traverses' ? `<input class="num" data-c="largeurTraverse" value="${caissonP.largeurTraverse ?? 100}" title="Largeur des traverses (mm)" style="width:70px">` : ''}</span>
+      ${caissonP.plinthe > 0 ? `<label for="k-entailles" title="Les côtés sont échancrés au pied et une seule plinthe, en retrait, court sur toute la largeur.">Côtés entaillés, plinthe unique</label><span class="row" style="flex-wrap:nowrap"><input type="checkbox" id="k-entailles" style="width:auto" ${caissonP.entailles ? 'checked' : ''}>${caissonP.entailles ? `<input class="num" data-c="retraitPlinthe" value="${caissonP.retraitPlinthe ?? caissonP.retrait}" title="Retrait de la plinthe en façade (mm)" style="width:70px">` : ''}</span>` : ''}
+      ${caissonP.types.some((t) => t === 'tiroirs' || t === 'penderie_tiroirs') ? `<label for="k-hts" title="Hauteur de chaque façade de bas en haut, jeu compris. Laisse 100 mm au-dessus, ou fais la somme de la hauteur moins la plinthe pour remplir la colonne.">Hauteurs de tiroirs (mm)</label><input id="k-hts" value="${(caissonP.hTiroirs ?? []).join(', ')}" placeholder="ex. 310, 310, 160 (vide : réguliers)"><label for="k-ept" title="8 mm par défaut ; 5 pour du contreplaqué de 5.">Fond de tiroir, épaisseur (mm)</label><input class="num" id="k-ept" data-c="epFondTiroir" value="${caissonP.epFondTiroir ?? 8}">` : ''}
+      ${caissonP.colonnes > 1 && caissonP.fond > 0 ? `<label for="k-fpc" title="Un fond par colonne au lieu d'un seul : il se range mieux dans un panneau.">Un fond par colonne</label><input type="checkbox" id="k-fpc" style="width:auto;justify-self:start" ${caissonP.fondParColonne ? 'checked' : ''}>` : ''}
+      ${caissonP.colonnes > 1 ? `<label for="k-egales" title="Les colonnes sont calculées pour que toutes les façades aient la même largeur (sans largeurs choisies à la main).">Façades de même largeur</label><input type="checkbox" id="k-egales" style="width:auto;justify-self:start" ${caissonP.facadesEgales ? 'checked' : ''}>` : ''}
       ${caissonP.colonnes > 1 ? `<label for="k-pleins" title="Les montants vont du sol au dessus ; dessus, dessous et plinthe sont coupés par colonne. Utile quand le meuble est plus long qu'un panneau.">Montants pleine hauteur</label><input type="checkbox" id="k-pleins" style="width:auto;justify-self:start" ${caissonP.montantsPleins ? 'checked' : ''}>` : ''}
       <label for="k-mat">Matière des panneaux</label><input id="k-mat" list="k-mats" value="${esc(caissonMat)}">
       ${pucesForm('k-mat', caissonMat)}
       <label for="k-fondmat">Matière du fond</label><input id="k-fondmat" list="k-mats" value="${esc(caissonFondMat)}">
       ${pucesForm('k-fondmat', caissonFondMat)}
+      <label for="k-facade" title="Vide : la même que les panneaux">Façades (portes et tiroirs)</label><input id="k-facade" list="k-mats" value="${esc(caissonFacadeMat)}" placeholder="comme les panneaux">
+      ${pucesForm('k-facade', caissonFacadeMat)}
+      ${caissonP.types.some((t) => t === 'tiroirs' || t === 'penderie_tiroirs') ? `<label for="k-caissetir" title="Côtés, devants et arrières. Vide : la même que les panneaux">Caisses de tiroir</label><input id="k-caissetir" list="k-mats" value="${esc(caissonCaisseTirMat)}" placeholder="comme les panneaux">${pucesForm('k-caissetir', caissonCaisseTirMat)}` : ''}
       ${caissonP.types.some((t) => t === 'tiroirs' || t === 'penderie_tiroirs') ? `<label for="k-fondtir" title="Vide : la même que le fond">Fonds de tiroir</label><input id="k-fondtir" list="k-mats" value="${esc(caissonFondTiroirMat)}" placeholder="comme le fond">${pucesForm('k-fondtir', caissonFondTiroirMat)}` : ''}
       <datalist id="k-mats">${(doc.methods ?? []).map((m) => `<option value="${esc(m.nom)}">`).join('')}<option value="Mélaminé blanc 18"><option value="Contreplaqué 18"><option value="HDF 3"></datalist>
     </div>
@@ -2403,6 +2413,19 @@ function renderCaisson() {
     el.onchange = () => { caissonP.types[Number(el.dataset.col)] = el.value as TypeColonne; renderCaisson(); };
   });
   (document.getElementById('k-portes') as HTMLInputElement).onchange = (e) => { caissonP.portes = (e.target as HTMLInputElement).checked; renderCaisson(); };
+  (document.getElementById('k-dessus') as HTMLSelectElement).onchange = (e) => { if ((e.target as HTMLSelectElement).value === 'traverses') caissonP.dessus = 'traverses'; else { delete caissonP.dessus; delete caissonP.largeurTraverse; } renderCaisson(); };
+  const ent = document.getElementById('k-entailles') as HTMLInputElement | null;
+  if (ent) ent.onchange = () => { if (ent.checked) caissonP.entailles = true; else { delete caissonP.entailles; delete caissonP.retraitPlinthe; } renderCaisson(); };
+  const hts = document.getElementById('k-hts') as HTMLInputElement | null;
+  if (hts) hts.onchange = () => { const l = hts.value.split(/[\s,;]+/).filter(Boolean).map(num); if (l.length && l.every((x) => x > 0)) caissonP.hTiroirs = l; else delete caissonP.hTiroirs; renderCaisson(); };
+  const fa = document.getElementById('k-facade') as HTMLInputElement | null;
+  if (fa) fa.onchange = () => { caissonFacadeMat = fa.value; };
+  const ct = document.getElementById('k-caissetir') as HTMLInputElement | null;
+  if (ct) ct.onchange = () => { caissonCaisseTirMat = ct.value; };
+  const fpc = document.getElementById('k-fpc') as HTMLInputElement | null;
+  if (fpc) fpc.onchange = () => { if (fpc.checked) caissonP.fondParColonne = true; else delete caissonP.fondParColonne; renderCaisson(); };
+  const egales = document.getElementById('k-egales') as HTMLInputElement | null;
+  if (egales) egales.onchange = () => { if (egales.checked) { caissonP.facadesEgales = true; delete caissonP.largeurs; } else delete caissonP.facadesEgales; renderCaisson(); };
   const pleins = document.getElementById('k-pleins') as HTMLInputElement | null;
   if (pleins) pleins.onchange = () => { if (pleins.checked) caissonP.montantsPleins = true; else delete caissonP.montantsPleins; renderCaisson(); };
   (document.getElementById('k-mat') as HTMLInputElement).onchange = (e) => { caissonMat = (e.target as HTMLInputElement).value; };
@@ -2413,7 +2436,7 @@ function renderCaisson() {
     b.onclick = () => { const m = MODELES[Number(b.dataset.modele)]!.params; caissonP = { ...CAISSON_DEFAUT, ...m, types: [...(m.types ?? CAISSON_DEFAUT.types)] }; renderCaisson(); };
   });
   debitEl.querySelectorAll<HTMLButtonElement>('[data-kmat]').forEach((b) => {
-    b.onclick = () => { if (b.dataset.kmat === 'k-mat') caissonMat = b.dataset.nom!; else if (b.dataset.kmat === 'k-fondtir') caissonFondTiroirMat = b.dataset.nom!; else caissonFondMat = b.dataset.nom!; renderCaisson(); };
+    b.onclick = () => { if (b.dataset.kmat === 'k-mat') caissonMat = b.dataset.nom!; else if (b.dataset.kmat === 'k-fondtir') caissonFondTiroirMat = b.dataset.nom!; else if (b.dataset.kmat === 'k-facade') caissonFacadeMat = b.dataset.nom!; else if (b.dataset.kmat === 'k-caissetir') caissonCaisseTirMat = b.dataset.nom!; else caissonFondMat = b.dataset.nom!; renderCaisson(); };
   });
   document.getElementById('k-cancel')!.onclick = closeDebit;
   document.getElementById('k-ok')!.onclick = creerCaisson;
@@ -2436,9 +2459,11 @@ function ecrireCaisson(d: Doc, rec: CaissonRec, origine: V3): number[] {
     const sid = d.next++;
     // panneaux minces : fond du meuble, ou fonds de tiroir s'ils ont leur propre matière ; un matériau du projet comme les autres
     const mince = (p.nom === 'Fond tiroir' && rec.fondTiroir ? rec.fondTiroir : rec.fond ?? '').trim();
-    const mid = p.corps ? rec.methode : p.piece && mince ? methodeNommee(mince, d) : 0;
+    // façades de portes et de tiroirs, caissons de tiroir : matière propre si elle est donnée, sinon celle du meuble
+    const propre = (p.role?.type === 'porte' || (p.role?.type === 'tiroir' && p.role.facade) ? rec.facade : p.role?.type === 'tiroir' && p.corps ? rec.caisseTiroir : undefined)?.trim();
+    const mid = propre ? methodeNommee(propre, d) : p.corps ? rec.methode : p.piece && mince ? methodeNommee(mince, d) : 0;
     const meta = { piece: p.piece, matiere: p.corps ? '' : mince, fil: 'aucun' as const, note: '', caisson: rec.id, ...(mid ? { methode: mid } : {}) };
-    d.solids.push({ id: sid, name: p.nom, mesh: boxMesh(add(p.min, origine), add(p.max, origine)), meta });
+    d.solids.push({ id: sid, name: p.nom, mesh: maillePanneau(p, origine), meta });
     ids.push(sid);
     if (p.role) roles.push({ id: sid, role: p.role });
   }
@@ -2482,6 +2507,8 @@ function creerCaisson() {
   if (!origine) { const bb = bboxOf(doc.solids.filter((x) => x.meta.caisson !== rec.id)); origine = [bb ? bb.max[0] + 0.3 : 0, 0, 0]; }
   rec.params = JSON.parse(JSON.stringify(caissonP)) as CaissonParams; rec.methode = methode; rec.fond = caissonFondMat;
   if (caissonFondTiroirMat.trim()) rec.fondTiroir = caissonFondTiroirMat.trim(); else delete rec.fondTiroir;
+  if (caissonFacadeMat.trim()) rec.facade = caissonFacadeMat.trim(); else delete rec.facade;
+  if (caissonCaisseTirMat.trim() && caissonP.types.some((t) => t === 'tiroirs' || t === 'penderie_tiroirs')) rec.caisseTiroir = caissonCaisseTirMat.trim(); else delete rec.caisseTiroir;
   const ids = ecrireCaisson(doc, rec, origine);
   selected.clear(); for (const i of ids) selected.add(i);
   caissonEdit = null;
@@ -2502,6 +2529,8 @@ function openCaisson(id: number | null) {
     caissonMat = (doc.methods ?? []).find((m) => m.id === rec.methode)?.nom ?? '';
     caissonFondMat = rec.fond ?? caissonFondMat;
     caissonFondTiroirMat = rec.fondTiroir ?? '';
+    caissonFacadeMat = rec.facade ?? '';
+    caissonCaisseTirMat = rec.caisseTiroir ?? '';
   }
   renderCaisson(); debitEl.classList.add('open');
 }
@@ -2668,20 +2697,21 @@ const ctxMcp: CtxMcp = {
   ecrireFiche(rows, message) { cancelOp(); debit = rows; commit(); noter(message); },
   annuler() { const avant = hIdx; undo(); if (hIdx !== avant) noter('dernière modification annulée'); return hIdx !== avant; },
   capture,
-  creerMeuble(d, params, matiere, fond, origine, fondTiroir) {
+  creerMeuble(d, params, matiere, fond, origine, autres) {
     d.caissons ??= [];
-    const rec: CaissonRec = { id: d.next++, params: JSON.parse(JSON.stringify(params)) as CaissonParams, methode: methodeNommee(matiere, d), fond, ...(fondTiroir ? { fondTiroir } : {}) };
+    const rec: CaissonRec = { id: d.next++, params: JSON.parse(JSON.stringify(params)) as CaissonParams, methode: methodeNommee(matiere, d), fond };
+    for (const k of ['fondTiroir', 'facade', 'caisseTiroir'] as const) if (autres?.[k]) rec[k] = autres[k];
     d.caissons.push(rec);
     if (!origine) { const bb = bboxOf(d.solids); origine = [bb ? bb.max[0] + 0.3 : 0, 0, 0]; }
     return { id: rec.id, ids: ecrireCaisson(d, rec, origine) };
   },
-  modifierMeuble(base, id, params, matiere, fond, fondTiroir) {
+  modifierMeuble(base, id, params, matiere, fond, autres) {
     const r = caissonModifie(base, id, params);
-    if (!r || (matiere === undefined && fond === undefined && fondTiroir === undefined)) return r;
+    if (!r || (matiere === undefined && fond === undefined && !autres)) return r;
     const rec = r.doc.caissons!.find((x) => x.id === id)!;
     if (matiere !== undefined) rec.methode = methodeNommee(matiere, r.doc);
     if (fond !== undefined) rec.fond = fond;
-    if (fondTiroir !== undefined) { if (fondTiroir) rec.fondTiroir = fondTiroir; else delete rec.fondTiroir; }
+    for (const k of ['fondTiroir', 'facade', 'caisseTiroir'] as const) { const v = autres?.[k]; if (v !== undefined) { if (v) rec[k] = v; else delete rec[k]; } }
     return { doc: r.doc, ids: ecrireCaisson(r.doc, rec, origineCaisson(r.doc, rec)!) };
   },
 };

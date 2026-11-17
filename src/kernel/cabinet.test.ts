@@ -1,9 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { CAISSON_DEFAUT, deplacerMontant, fixerLargeur, genererCaisson, verifier, videsColonnes, type CaissonParams, type PanneauCaisson } from './cabinet';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { CAISSON_DEFAUT, deplacerMontant, fixerLargeur, genererCaisson, maillePanneau, verifier, videsColonnes, type CaissonParams, type PanneauCaisson } from './cabinet';
 
 const dims = (b: { min: number[]; max: number[] }) => [0, 1, 2].map((i) => Math.round((b.max[i]! - b.min[i]!) * 1e4) / 10);
 const noms = (ps: PanneauCaisson[], n: string) => ps.filter((p) => p.nom === n);
 const q = (c: ReturnType<typeof genererCaisson>, n: string) => c.quincaillerie.find((x) => x.nom.startsWith(n))?.qte ?? 0;
+
+import { initKernel, volumeOf } from './model';
+beforeAll(async () => { await initKernel(); });
 
 // Aucun panneau ne doit en traverser un autre (contact autorisé).
 function sansCollision(ps: PanneauCaisson[]) {
@@ -148,5 +151,100 @@ describe('montants pleine hauteur', () => {
     expect(noms(ps, 'Montant').every((x) => x.min[2] === 0 && x.max[2] === 2.23)).toBe(true);
     // aucune pièce plus longue qu'un panneau de 2500
     expect(Math.max(...ps.map((x) => Math.max(...dims(x))))).toBeLessThanOrEqual(2500);
+  });
+});
+
+// Le buffet de 1800 mm : un seul caisson, tiroirs en colonne 1 et deux placards, dessus en traverses, plinthe unique.
+const BUFFET: CaissonParams = {
+  ...CAISSON_DEFAUT, L: 1800, H: 870, P: 555, colonnes: 3, types: ['tiroirs', 'etageres', 'etageres'], etageres: 1, portes: true,
+  plinthe: 90, fond: 5, jeu: 3, retrait: 20, retraitPlinthe: 70, hTiroirs: [310, 310, 160], dessus: 'traverses', entailles: true,
+};
+
+describe('générateur : dessus en traverses, entailles, tiroirs de hauteurs libres', () => {
+  it('traverses : deux par travée à la place du dessus, sans collision', () => {
+    const ps = genererCaisson({ ...CAISSON_DEFAUT, dessus: 'traverses', largeurTraverse: 80 }).panneaux;
+    expect(noms(ps, 'Dessus')).toHaveLength(0);
+    const t = noms(ps, 'Traverse haute');
+    expect(t.map(dims)).toEqual([[964, 80, 18], [964, 80, 18]]);
+    expect(t.map((x) => [x.min[1], x.max[1]])).toEqual([[0, 0.08], [0.42, 0.5]]);
+    sansCollision(ps);
+    expect(verifier({ ...CAISSON_DEFAUT, dessus: 'traverses', largeurTraverse: 10 })).toMatch(/Traverses/);
+  });
+
+  it('entailles : côtés échancrés, une seule plinthe en retrait', () => {
+    const ps = genererCaisson({ ...CAISSON_DEFAUT, plinthe: 90, retraitPlinthe: 70, entailles: true }).panneaux;
+    expect(noms(ps, 'Côté').every((c) => c.entaille && Math.abs(c.entaille.prof - 0.088) < 1e-9 && Math.abs(c.entaille.haut - 0.09) < 1e-9)).toBe(true);
+    const pl = noms(ps, 'Plinthe');
+    expect(pl).toHaveLength(1);
+    expect([pl[0]!.min[1], pl[0]!.max[1]]).toEqual([0.07, 0.088]);
+    // sans plinthe : rien à entailler
+    expect(noms(genererCaisson({ ...CAISSON_DEFAUT, plinthe: 0, entailles: true }).panneaux, 'Côté').every((c) => !c.entaille)).toBe(true);
+    // montants pleine hauteur : entaillés aussi, la plinthe reste unique
+    const m = genererCaisson({ ...CAISSON_DEFAUT, montantsPleins: true, entailles: true }).panneaux;
+    expect(noms(m, 'Montant').every((c) => c.entaille)).toBe(true);
+    expect(noms(m, 'Plinthe')).toHaveLength(1);
+  });
+
+  it('le maillage entaillé a le volume du pavé moins l\'échancrure', () => {
+    const c = noms(genererCaisson({ ...CAISSON_DEFAUT, plinthe: 90, retraitPlinthe: 70, entailles: true }).panneaux, 'Côté')[0]!;
+    const pave = (c.max[0]! - c.min[0]!) * (c.max[1]! - c.min[1]!) * (c.max[2]! - c.min[2]!);
+    expect(volumeOf(maillePanneau(c, [0, 0, 0]))).toBeCloseTo(pave - 0.018 * 0.088 * 0.09, 6);
+    expect(volumeOf(maillePanneau({ ...c, entaille: undefined }, [1, 2, 3]))).toBeCloseTo(pave, 6);
+  });
+
+  it('hauteurs de tiroir libres : 310, 310, 160 remplissent la colonne, sans tablette ni porte', () => {
+    const c = genererCaisson(BUFFET);
+    const ps = c.panneaux;
+    const f = noms(ps, 'Façade tiroir').sort((a, b) => a.min[2]! - b.min[2]!);
+    expect(f.map((x) => dims(x)[2])).toEqual([307, 307, 157]);
+    expect(f[0]!.min[2]).toBeCloseTo(0.0915, 9);
+    expect(f[2]!.max[2]).toBeCloseTo(0.8685, 9);
+    expect(noms(ps, 'Tablette')).toHaveLength(0);
+    expect(noms(ps, 'Porte')).toHaveLength(2);                       // une par placard
+    // les caissons de tiroir restent sous les traverses du dessus
+    const zHaut = 0.852;
+    expect(Math.max(...ps.filter((x) => x.nom === 'Côté tiroir').map((x) => x.max[2]))).toBeLessThanOrEqual(zHaut);
+    sansCollision(ps);
+  });
+
+  it('hauteurs de tiroir : refuse ce qui ne laisse ni 100 mm ni ne remplit', () => {
+    expect(verifier({ ...BUFFET, hTiroirs: [310, 310, 100] })).toMatch(/100 mm au-dessus/);
+    expect(verifier({ ...BUFFET, hTiroirs: [310, 310, 200] })).toMatch(/dépassent/);
+    expect(verifier({ ...BUFFET, hTiroirs: [90, 300] })).toMatch(/100 mm minimum/);
+    expect(verifier({ ...BUFFET, hTiroirs: [200, 200] })).toBeNull();   // 400 : de la place au-dessus pour une tablette
+  });
+
+  it('sans les nouvelles options, rien ne change (tiroirs réguliers)', () => {
+    const a = genererCaisson({ ...CAISSON_DEFAUT, colonnes: 1, types: ['tiroirs'], tiroirs: 3, hTiroir: 200 });
+    const b = genererCaisson({ ...CAISSON_DEFAUT, colonnes: 1, types: ['tiroirs'], hTiroirs: [200, 200, 200] });
+    expect(b.panneaux.map((x) => [x.nom, x.min, x.max])).toEqual(a.panneaux.map((x) => [x.nom, x.min, x.max]));
+  });
+
+  it('façades égales : les trois façades du buffet ont la même largeur', () => {
+    const l = (p: CaissonParams) => noms(genererCaisson(p).panneaux, 'Porte').map((x) => dims(x)[0]);
+    const egal = { ...BUFFET, facadesEgales: true };
+    expect(l(egal)).toEqual([597, 597]);                                  // 600 de zone, moins le jeu
+    const f = noms(genererCaisson(egal).panneaux, 'Façade tiroir');
+    expect(new Set(f.map((x) => dims(x)[0]))).toEqual(new Set([597]));
+    expect(l(BUFFET).sort()).not.toEqual([597, 597]);                    // colonnes égales : les rives sont plus larges
+    expect(videsColonnes({ ...egal }).reduce((a, b) => a + b, 0) + 4 * 18).toBeCloseTo(1800, 9);
+    // des largeurs choisies à la main priment
+    expect(videsColonnes({ ...egal, largeurs: [1, 1, 2] })[2]! / videsColonnes({ ...egal, largeurs: [1, 1, 2] })[0]!).toBeCloseTo(2, 9);
+  });
+
+  it('fond de tiroir : épaisseur réglable', () => {
+    const f = (ep?: number) => noms(genererCaisson({ ...BUFFET, ...(ep ? { epFondTiroir: ep } : {}) }).panneaux, 'Fond tiroir').map((x) => dims(x)[2]);
+    expect(f()).toEqual([8, 8, 8]);
+    expect(f(5)).toEqual([5, 5, 5]);
+    expect(verifier({ ...BUFFET, epFondTiroir: 2 })).toMatch(/3 à 20/);
+  });
+
+  it('un fond par colonne, coupé au milieu des montants, sans collision', () => {
+    const ps = genererCaisson({ ...BUFFET, fondParColonne: true, facadesEgales: true }).panneaux;
+    const f = noms(ps, 'Fond').sort((a, b) => a.min[0]! - b.min[0]!);
+    expect(f).toHaveLength(3);
+    expect(f.map((x) => [Math.round(x.min[0]! * 1e4) / 10, Math.round(x.max[0]! * 1e4) / 10])).toEqual([[0, 600], [600, 1200], [1200, 1800]]);
+    expect(genererCaisson({ ...BUFFET, colonnes: 1, types: ['etageres'], fondParColonne: true }).panneaux.filter((x) => x.nom === 'Fond')).toHaveLength(1);
+    sansCollision(ps);
   });
 });

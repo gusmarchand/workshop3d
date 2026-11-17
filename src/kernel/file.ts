@@ -88,9 +88,17 @@ export function parse(text: string): Saved {
     params.portes = pr.portes === true;
     if (Array.isArray(pr.largeurs) && pr.largeurs.every((x) => typeof x === 'number' && x > 0)) params.largeurs = pr.largeurs as number[];
     if (pr.montantsPleins === true) params.montantsPleins = true;
+    if (pr.dessus === 'traverses') params.dessus = 'traverses';
+    if (pr.largeurTraverse !== undefined) params.largeurTraverse = pos(pr.largeurTraverse);
+    if (pr.retraitPlinthe !== undefined) params.retraitPlinthe = pos(pr.retraitPlinthe);
+    if (pr.entailles === true) params.entailles = true;
+    if (pr.facadesEgales === true) params.facadesEgales = true;
+    if (pr.fondParColonne === true) params.fondParColonne = true;
+    if (pr.epFondTiroir !== undefined) params.epFondTiroir = pos(pr.epFondTiroir);
+    if (Array.isArray(pr.hTiroirs) && pr.hTiroirs.length && pr.hTiroirs.every((x) => typeof x === 'number' && x > 0)) params.hTiroirs = pr.hTiroirs as number[];
     params.types = Array.isArray(pr.types) ? pr.types.map((t) => (TYPES.includes(t as TypeColonne) ? (t as TypeColonne) : 'etageres')) : params.types;
     const id = num(c.id); maxId = Math.max(maxId, id);
-    return { id, params, methode: num(c.methode), ...(typeof c.fond === 'string' ? { fond: c.fond } : {}), ...(typeof c.fondTiroir === 'string' && c.fondTiroir ? { fondTiroir: c.fondTiroir } : {}) };
+    return { id, params, methode: num(c.methode), ...(typeof c.fond === 'string' ? { fond: c.fond } : {}), ...(typeof c.fondTiroir === 'string' && c.fondTiroir ? { fondTiroir: c.fondTiroir } : {}), ...(typeof c.facade === 'string' && c.facade ? { facade: c.facade } : {}), ...(typeof c.caisseTiroir === 'string' && c.caisseTiroir ? { caisseTiroir: c.caisseTiroir } : {}) };
   });
   const guides: Guide[] = (Array.isArray(d.guides) ? d.guides : []).filter(isObj).flatMap((g) => {
     if (!isNums(g.p, 3) || !isNums(g.d, 3) || Math.hypot(...(g.d as number[])) < 1e-9) return [];

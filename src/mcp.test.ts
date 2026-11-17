@@ -49,6 +49,22 @@ describe('outils MCP', () => {
     expect(p.types).toEqual(['tiroirs']);
   });
 
+  it('meuble : dessus en traverses, entailles, hauteurs de tiroir libres', () => {
+    const t = ctx();
+    const r = appeler(t.c, 'creer_meuble', { params: { L: 1800, H: 870, P: 555, colonnes: 3, types: ['tiroirs', 'etageres', 'etageres'], etageres: 1, portes: true, plinthe: 90, fond: 5, retraitPlinthe: 70, dessus: 'traverses', entailles: true, hTiroirs: [310, 310, 160] } });
+    expect(r.isError, texte(r)).toBeUndefined();
+    const p = t.doc.caissons![0]!.params as CaissonParams;
+    expect([p.dessus, p.entailles, p.hTiroirs, p.retraitPlinthe]).toEqual(['traverses', true, [310, 310, 160], 70]);
+    for (const params of [{ dessus: 'verre' }, { hTiroirs: [10] }, { hTiroirs: 'beaucoup' }, { largeurTraverse: 5 }, { hTiroirs: [310, 310, 100] }])
+      expect(appeler(t.c, 'creer_meuble', { params: { colonnes: 3, types: ['tiroirs', 'etageres', 'etageres'], H: 870, plinthe: 90, ...params } }).isError, JSON.stringify(params)).toBe(true);
+    // « modifier » peut revenir au dessus plein et retirer les hauteurs libres
+    t.c.modifierMeuble = (base, id, params) => { const d = JSON.parse(JSON.stringify(base)) as typeof base; d.caissons!.find((x) => x.id === id)!.params = params; return { doc: d, ids: [] }; };
+    const m = appeler(t.c, 'modifier_meuble', { meuble: t.doc.caissons![0]!.id, params: { dessus: 'plein', hTiroirs: null, entailles: false } });
+    expect(m.isError, texte(m)).toBeUndefined();
+    const q = t.doc.caissons![0]!.params as CaissonParams;
+    expect([q.dessus, q.entailles, q.hTiroirs]).toEqual([undefined, undefined, undefined]);
+  });
+
   it('refuse les arguments invalides sans toucher au document', () => {
     const t = ctx();
     for (const args of [

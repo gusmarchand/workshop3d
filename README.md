@@ -85,7 +85,7 @@ Ce qui reste à améliorer, dans l'ordre où je le ferais :
 
 - **Découper `main.ts`** (environ 2700 lignes, état global) en modules d'outils.
 - **Clé API dans le Trousseau macOS** plutôt que dans un fichier de droits 600.
-- **Un meuble paramétrique plus riche** : dessus en traverses, plinthe continue, côtés entaillés, hauteurs de tiroir libres, matériau propre aux caissons de tiroir. Aujourd'hui ces variantes se font à la main et sont perdues si on régénère le meuble.
+- **Meubles paramétriques** : le générateur sait maintenant les traverses hautes, la plinthe unique avec côtés entaillés, les hauteurs de tiroir libres et des matières propres aux façades et aux caissons de tiroir. Restent à faire : des tiroirs de hauteurs différentes selon la colonne, des angles, des meubles hauts.
 - **Découpe** : essayer chaque format de panneau disponible et garder le moins cher ; autoriser des matières équivalentes.
 - **Tests** : l'interface et `main.ts` ne sont vérifiés qu'à la main.
 - **Version téléchargeable** : publier un `.app` signé depuis la CI.

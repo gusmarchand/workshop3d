@@ -3,7 +3,7 @@
 // Les arguments viennent de l'extérieur : tout est vérifié avant d'agir. Cotes en mm côté outils, en m dans le modèle.
 import { CAISSON_DEFAUT, MODELES, verifier, type CaissonParams, type TypeColonne } from './kernel/cabinet';
 import { coutChant, totals, type DebitRow } from './kernel/debit';
-import { boxMesh, cloneDoc, couleurDe, estManifold, materiauNomme, meshBounds, prismMesh, materiauDe, moveSolid, pieceDims, REGLAGES_DEFAUT, sansMeublesVides, type Doc, type Solid, type V3 } from './kernel/model';
+import { boxMesh, cloneDoc, couleurDe, estManifold, materiauNomme, meshBounds, prismMesh, materiauDe, moveSolid, pieceDims, REGLAGES_DEFAUT, sansMeublesVides, type Doc, type MatieresCaisson, type Solid, type V3 } from './kernel/model';
 import { planDecoupe } from './kernel/nesting';
 import { controler } from './kernel/controle';
 import { listeCourses } from './kernel/courses';
@@ -27,8 +27,8 @@ export interface Ctx {
   fiche(): DebitRow[];                        // fiche telle qu'enregistrée (lignes manuelles comprises)
   ecrireFiche(rows: DebitRow[], message: string): void;
   capture(vue: Vue | undefined, largeur: number): string;        // JPEG en base64
-  creerMeuble(d: Doc, params: CaissonParams, matiere: string, fond: string, origine: V3 | null, fondTiroir?: string): { id: number; ids: number[] };
-  modifierMeuble(d: Doc, id: number, params: CaissonParams, matiere?: string, fond?: string, fondTiroir?: string): { doc: Doc; ids: number[] } | null;
+  creerMeuble(d: Doc, params: CaissonParams, matiere: string, fond: string, origine: V3 | null, autres?: MatieresCaisson): { id: number; ids: number[] };
+  modifierMeuble(d: Doc, id: number, params: CaissonParams, matiere?: string, fond?: string, autres?: MatieresCaisson): { doc: Doc; ids: number[] } | null;
 }
 type Contenu = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
 export interface Resultat { content: Contenu[]; isError?: boolean }
@@ -82,7 +82,7 @@ function objet(a: Args, k: string): Args | undefined {
 const TYPES: TypeColonne[] = ['etageres', 'penderie', 'tiroirs', 'penderie_tiroirs'];
 const BORNES: Partial<Record<keyof CaissonParams, [number, number]>> = {
   L: [50, 10000], H: [50, 5000], P: [50, 2000], e: [3, 60], colonnes: [1, 12], etageres: [0, 30], tiroirs: [1, 10],
-  hTiroir: [50, 1000], jeu: [0, 10], fond: [0, 30], plinthe: [0, 500], retrait: [0, 500],
+  hTiroir: [50, 1000], jeu: [0, 10], fond: [0, 30], plinthe: [0, 500], retrait: [0, 500], largeurTraverse: [30, 500], retraitPlinthe: [0, 500], epFondTiroir: [3, 20],
 };
 // Paramètres partiels venus de l'extérieur, fusionnés sur `base`.
 function lireParams(src: Args, base: CaissonParams): CaissonParams {
@@ -93,6 +93,19 @@ function lireParams(src: Args, base: CaissonParams): CaissonParams {
       (p as unknown as Record<string, number>)[k] = nombre(src, k, { min, max })!;
     } else if (k === 'portes') p.portes = booleen(src, k)!;
     else if (k === 'montantsPleins') { if (booleen(src, k)) p.montantsPleins = true; else delete p.montantsPleins; }
+    else if (k === 'entailles') { if (booleen(src, k)) p.entailles = true; else delete p.entailles; }
+    else if (k === 'facadesEgales') { if (booleen(src, k)) p.facadesEgales = true; else delete p.facadesEgales; }
+    else if (k === 'fondParColonne') { if (booleen(src, k)) p.fondParColonne = true; else delete p.fondParColonne; }
+    else if (k === 'dessus') {
+      const v = texte(src, k, 20);
+      if (v !== 'plein' && v !== 'traverses') throw new ErreurArg('« dessus » : plein ou traverses.');
+      if (v === 'traverses') p.dessus = 'traverses'; else delete p.dessus;
+    } else if (k === 'hTiroirs') {
+      const l = src[k];
+      if (l === null || (Array.isArray(l) && !l.length)) delete p.hTiroirs;
+      else if (!Array.isArray(l) || l.length > 10 || !l.every((x) => typeof x === 'number' && x >= 50 && x <= 1000)) throw new ErreurArg('« hTiroirs » : jusqu\'à 10 hauteurs de façade en mm (50 à 1000), de bas en haut.');
+      else p.hTiroirs = l as number[];
+    }
     else if (k === 'types') {
       const t = src[k];
       if (!Array.isArray(t) || t.length > 12 || !t.every((x) => TYPES.includes(x as TypeColonne))) throw new ErreurArg(`« types » : liste parmi ${TYPES.join(', ')}.`);
@@ -124,6 +137,11 @@ const PARAMS_SCHEMA = {
     hTiroir: { type: 'number', description: 'hauteur de façade de tiroir' }, portes: { type: 'boolean', description: 'portes en applique (2 au-delà de 600 mm)' }, montantsPleins: { type: 'boolean', description: 'montants du sol au dessus, dessus/dessous/plinthe coupés par colonne (meuble plus long qu\'un panneau)' },
     jeu: { type: 'number' }, fond: { type: 'number', description: 'épaisseur du fond (0 = sans fond)' },
     plinthe: { type: 'number', description: 'hauteur de plinthe (0 = posé au sol)' }, retrait: { type: 'number', description: 'retrait des étagères en façade' },
+    dessus: { enum: ['plein', 'traverses'], description: 'dessus : panneau plein (défaut) ou deux traverses (avant et arrière), pour un meuble sous plan de travail' }, largeurTraverse: { type: 'number', description: 'largeur des traverses du dessus (100 par défaut)' },
+    fondParColonne: { type: 'boolean', description: 'un fond par colonne au lieu d\'un seul sur toute la largeur (se range mieux dans un panneau)' },
+    facadesEgales: { type: 'boolean', description: 'colonnes calculées pour que toutes les façades (portes, tiroirs) aient la même largeur ; ignoré si `largeurs` est donné' }, epFondTiroir: { type: 'number', description: 'épaisseur du fond de tiroir (8 par défaut ; 5 pour du contreplaqué de 5)' },
+    entailles: { type: 'boolean', description: 'côtés et montants entaillés au pied : une seule plinthe sur toute la largeur, en retrait (retraitPlinthe)' }, retraitPlinthe: { type: 'number', description: 'retrait de la plinthe en façade (retrait par défaut)' },
+    hTiroirs: { type: 'array', items: { type: 'number' }, description: 'hauteurs de façade de chaque tiroir, de bas en haut, jeu compris, à la place de tiroirs × hTiroir. Soit 100 mm libres au-dessus, soit la somme = hauteur − plinthe : les tiroirs remplissent la colonne, sans tablette' },
   },
   additionalProperties: false,
 };
@@ -135,8 +153,8 @@ export const OUTILS = [
   { name: 'decoupe', title: 'Découpe et coût', description: 'Optimisation de la découpe sur le stock de panneaux : panneaux utilisés et à acheter par matière, chute, pièces sans place, coût total (panneaux, chant, quincaillerie).', inputSchema: { type: 'object', properties: {} }, annotations: { readOnlyHint: true } },
   { name: 'capture', title: 'Capture de la vue', description: 'Image de la vue 3D, telle que l\'utilisateur la voit, ou d\'une vue normalisée cadrée sur tout le modèle (la vue de l\'utilisateur n\'est pas changée). Les cotes affichées (étiquettes) ne figurent pas sur l\'image.', inputSchema: { type: 'object', properties: { vue: { enum: ['face', 'dessus', 'cote', 'iso'] }, largeur: { type: 'integer', description: 'largeur de l\'image en pixels (400 à 1600, 1000 par défaut)' } } }, annotations: { readOnlyHint: true } },
   { name: 'selectionner', title: 'Sélectionner', description: 'Sélectionne des pièces ou un meuble dans l\'app, pour les montrer à l\'utilisateur. Ne modifie pas le modèle.', inputSchema: { type: 'object', properties: { ids: IDS, meuble: { type: 'integer' } } }, annotations: { readOnlyHint: true } },
-  { name: 'creer_meuble', title: 'Créer un meuble', description: `Crée un meuble paramétrique (caisson, dressing…) à partir d'un modèle et/ou de paramètres. Modèles : ${MODELES.map((m) => `${m.cle} (${m.nom})`).join(', ')}. Défauts : ${JSON.stringify(CAISSON_DEFAUT)}. Placé à droite du modèle si \`position\` est absente. Le résultat donne la boîte englobante, portes comprises (elles sont devant le caisson, en Y < 0).`, inputSchema: { type: 'object', properties: { modele: { enum: MODELES.map((m) => m.cle) }, params: PARAMS_SCHEMA, matiere: { type: 'string', description: 'matière des panneaux, ex. « Mélaminé blanc 18 »' }, matiere_fond: { type: 'string', description: 'ex. « HDF 3 »' }, matiere_fond_tiroir: { type: 'string', description: 'fonds de tiroir, si différents du fond (ex. « Contreplaqué 8 »)' }, position: { type: 'array', items: { type: 'number' }, description: 'coin bas avant gauche du caisson [x, y, z] en mm' } } }, annotations: { destructiveHint: false } },
-  { name: 'modifier_meuble', title: 'Modifier un meuble', description: 'Change les paramètres d\'un meuble existant ; il est recréé à sa place (côté gauche, dessous et arrière fixes). Les retouches faites à la main sur ses pièces sont perdues.', inputSchema: { type: 'object', properties: { meuble: { type: 'integer' }, params: PARAMS_SCHEMA, matiere: { type: 'string' }, matiere_fond: { type: 'string' }, matiere_fond_tiroir: { type: 'string' } }, required: ['meuble'] }, annotations: { destructiveHint: true } },
+  { name: 'creer_meuble', title: 'Créer un meuble', description: `Crée un meuble paramétrique (caisson, dressing…) à partir d'un modèle et/ou de paramètres. Modèles : ${MODELES.map((m) => `${m.cle} (${m.nom})`).join(', ')}. Défauts : ${JSON.stringify(CAISSON_DEFAUT)}. Placé à droite du modèle si \`position\` est absente. Le résultat donne la boîte englobante, portes comprises (elles sont devant le caisson, en Y < 0).`, inputSchema: { type: 'object', properties: { modele: { enum: MODELES.map((m) => m.cle) }, params: PARAMS_SCHEMA, matiere: { type: 'string', description: 'matière des panneaux, ex. « Mélaminé blanc 18 »' }, matiere_fond: { type: 'string', description: 'ex. « HDF 3 »' }, matiere_fond_tiroir: { type: 'string', description: 'fonds de tiroir, si différents du fond (ex. « Contreplaqué 8 »)' }, matiere_facade: { type: 'string', description: 'façades des portes et des tiroirs, si différentes du meuble (ex. « MDF 18 peint »)' }, matiere_caisse_tiroir: { type: 'string', description: 'côtés, devants et arrières de tiroir, si différents du meuble (ex. « MDF 18 »)' }, position: { type: 'array', items: { type: 'number' }, description: 'coin bas avant gauche du caisson [x, y, z] en mm' } } }, annotations: { destructiveHint: false } },
+  { name: 'modifier_meuble', title: 'Modifier un meuble', description: 'Change les paramètres d\'un meuble existant ; il est recréé à sa place (côté gauche, dessous et arrière fixes). Les retouches faites à la main sur ses pièces sont perdues.', inputSchema: { type: 'object', properties: { meuble: { type: 'integer' }, params: PARAMS_SCHEMA, matiere: { type: 'string' }, matiere_fond: { type: 'string' }, matiere_fond_tiroir: { type: 'string' }, matiere_facade: { type: 'string' }, matiere_caisse_tiroir: { type: 'string' } }, required: ['meuble'] }, annotations: { destructiveHint: true } },
   { name: 'deplacer', title: 'Déplacer', description: 'Déplace des pièces ou un meuble entier d\'un vecteur [dx, dy, dz] en mm.', inputSchema: { type: 'object', properties: { ids: IDS, meuble: { type: 'integer' }, delta: { type: 'array', items: { type: 'number' } } }, required: ['delta'] }, annotations: { destructiveHint: false } },
   { name: 'modifier_piece', title: 'Modifier une pièce', description: 'Change le nom, la matière, les chants (ex. « L1 L2 », L = grands côtés, l = petits), le fil du bois ou la présence dans la fiche de débit d\'une pièce.', inputSchema: { type: 'object', properties: { id: { type: 'integer' }, nom: { type: 'string' }, matiere: { type: 'string' }, chants: { type: 'string' }, fil: { enum: ['L', 'l', 'aucun'] }, dans_fiche: { type: 'boolean' } }, required: ['id'] }, annotations: { destructiveHint: false } },
   { name: 'ajouter', title: 'Ajouter des pièces', description: 'Ajoute des pièces libres, en mm : un pavé (coins min et max) ou un profil polygonal extrudé (coupes en biais), et éventuellement de la quincaillerie. Une seule étape d\'annulation. Pour une pièce sur mesure : plinthe, façade, tiroir sans avant, traverse…', inputSchema: { type: 'object', properties: { pieces: { type: 'array', maxItems: 200, items: { type: 'object', properties: { nom: { type: 'string' }, min: { type: 'array', items: { type: 'number' }, description: 'pavé : coin minimal [x, y, z]' }, max: { type: 'array', items: { type: 'number' }, description: 'pavé : coin maximal' }, profil: { type: 'object', description: 'pièce coupée en biais, à la place de min/max : polygone extrudé. axe x : points [y, z] ; axe y : [x, z] ; axe z : [x, y]', properties: { axe: { enum: ['x', 'y', 'z'] }, points: { type: 'array', items: { type: 'array', items: { type: 'number' } } }, de: { type: 'number' }, a: { type: 'number' } }, required: ['axe', 'points', 'de', 'a'] }, matiere: { type: 'string', description: 'nom d\'une matière du projet (ses chants s\'appliquent) ou matière libre' }, chants: { type: 'string' }, fil: { enum: ['L', 'l', 'aucun'] }, dans_fiche: { type: 'boolean', description: 'vrai par défaut' } }, required: ['nom', 'min', 'max'] } }, quincaillerie: { type: 'array', items: { type: 'object', properties: { nom: { type: 'string' }, qte: { type: 'integer' } }, required: ['nom', 'qte'] } } }, required: ['pieces'] }, annotations: { destructiveHint: false } },
@@ -172,7 +190,7 @@ function etat(c: Ctx) {
   const meubles = (d.caissons ?? []).map((r) => {
     const ps = d.solids.filter((s) => s.meta.caisson === r.id), b = bbox(ps);
     return {
-      id: r.id, matiere: (d.methods ?? []).find((m) => m.id === r.methode)?.nom ?? '', matiere_fond: r.fond ?? '', matiere_fond_tiroir: r.fondTiroir ?? null,
+      id: r.id, matiere: (d.methods ?? []).find((m) => m.id === r.methode)?.nom ?? '', matiere_fond: r.fond ?? '', matiere_fond_tiroir: r.fondTiroir ?? null, matiere_facade: r.facade ?? null, matiere_caisse_tiroir: r.caisseTiroir ?? null,
       pieces: ps.length, hors_tout: b ? mm3([b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]] as V3) : null,
       position: b ? mm3(b.min) : null, params: r.params,
       quincaillerie: (d.extras ?? []).filter((x) => x.caisson === r.id).map((x) => `${x.qte} ${x.nom}`),
@@ -255,9 +273,18 @@ function creer(c: Ctx, a: Args) {
   if (err) throw new ErreurArg(err);
   const pos = vecteur(a, 'position');
   const d = cloneDoc(c.doc());
-  const r = c.creerMeuble(d, params, texte(a, 'matiere') ?? 'Mélaminé blanc 18', texte(a, 'matiere_fond') ?? 'HDF 3', pos ? pos.map((v) => v / 1000) as V3 : null, texte(a, 'matiere_fond_tiroir'));
+  const r = c.creerMeuble(d, params, texte(a, 'matiere') ?? 'Mélaminé blanc 18', texte(a, 'matiere_fond') ?? 'HDF 3', pos ? pos.map((v) => v / 1000) as V3 : null, matieresCaisson(a));
   c.appliquer(d, `meuble créé (${params.L} × ${params.H} × ${params.P})`, r.ids);
   return resumeMeuble(d, r.id);
+}
+// Matières optionnelles d'un meuble : fonds de tiroir, façades (portes et tiroirs), caisses de tiroir. Vide : comme le meuble.
+function matieresCaisson(a: Args): MatieresCaisson | undefined {
+  const m: MatieresCaisson = {};
+  const fondTiroir = texte(a, 'matiere_fond_tiroir'), facade = texte(a, 'matiere_facade'), caisseTiroir = texte(a, 'matiere_caisse_tiroir');
+  if (fondTiroir !== undefined) m.fondTiroir = fondTiroir.trim();
+  if (facade !== undefined) m.facade = facade.trim();
+  if (caisseTiroir !== undefined) m.caisseTiroir = caisseTiroir.trim();
+  return Object.keys(m).length ? m : undefined;
 }
 function modifier(c: Ctx, a: Args) {
   const id = nombre(a, 'meuble')!;
@@ -266,7 +293,7 @@ function modifier(c: Ctx, a: Args) {
   const params = lireParams(objet(a, 'params') ?? {}, rec.params);
   const err = verifier(params);
   if (err) throw new ErreurArg(err);
-  const r = c.modifierMeuble(base, id, params, texte(a, 'matiere'), texte(a, 'matiere_fond'), texte(a, 'matiere_fond_tiroir'));
+  const r = c.modifierMeuble(base, id, params, texte(a, 'matiere'), texte(a, 'matiere_fond'), matieresCaisson(a));
   if (!r) throw new ErreurArg('Modification impossible.');
   c.appliquer(r.doc, `meuble ${id} modifié`, r.ids);
   return resumeMeuble(r.doc, id);

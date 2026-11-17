@@ -56,7 +56,18 @@ Les pièces d'un meuble généré portent `meta.caisson`. « Modifier le meuble 
 
 `genererCaisson(params)` produit les panneaux d'un caisson ou dressing : colonnes (étagères, penderie, tiroirs, penderie + tiroirs), portes en applique, fond, plinthe, montants pleins pour un meuble plus long qu'un panneau. `caissonModifie` (dans `main.ts`, car il écrit dans le document et la scène) le régénère à sa place. `verifier` refuse les combinaisons impossibles (par exemple des tiroirs qui laissent moins de 100 mm au-dessus).
 
-Ce qui n'est **pas** paramétrique aujourd'hui, et se fait avec l'outil MCP `ajouter` ou à la main : dessus remplacé par des traverses, plinthe continue sur plusieurs caissons, côtés entaillés, tiroirs de hauteurs différentes dans un même caisson.
+Options qui évitent les retouches à la main (toutes facultatives, valeurs par défaut = comportement d'origine) :
+
+| Option | Effet |
+|---|---|
+| `dessus: 'traverses'`, `largeurTraverse` | deux traverses (avant, arrière) à la place du dessus plein, sous un plan de travail |
+| `entailles`, `retraitPlinthe` | côtés et montants échancrés au pied (`PanneauCaisson.entaille`, maillage par `maillePanneau`), une seule plinthe en retrait sur toute la largeur |
+| `hTiroirs: [310, 310, 160]` | hauteurs de façade de bas en haut ; soit 100 mm libres au-dessus, soit la somme = hauteur − plinthe (colonne remplie, sans tablette ni porte) |
+| `epFondTiroir` | épaisseur du fond de tiroir (8 mm par défaut) |
+| `facadesEgales` | colonnes calculées pour que portes et façades de tiroir aient toutes la même largeur (sans `largeurs`) |
+| `fondParColonne` | un fond par colonne, coupé au milieu des montants : il se range mieux dans un panneau |
+
+Côté `CaissonRec` : `fondTiroir`, `facade` (portes et façades de tiroir) et `caisseTiroir` (côtés, devants, arrières) donnent une matière propre à ces pièces. Un buffet de 1800 mm (tiroirs, deux placards) tient en **un seul** caisson de trois colonnes : montants partagés, plinthe unique, un seul appel `creer_meuble`. Le test `BUFFET` de `cabinet.test.ts` en est l'exemple. Ce qui sort de ces options (angles, tiroirs de hauteurs différentes selon la colonne) se fait avec l'outil MCP `ajouter`, et « Modifier le meuble » l'efface.
 
 ## Portes et tiroirs (`elements.ts`)
 
