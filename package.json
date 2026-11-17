@@ -16,6 +16,7 @@
     "three": "^0.187.0"
   },
   "devDependencies": {
+    "@tabler/icons": "^3.52.0",
     "@tauri-apps/cli": "^2.12.4",
     "@types/three": "^0.187.0",
     "typescript": "^7.0.2",

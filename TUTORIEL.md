@@ -1,10 +1,18 @@
 # Workshop 3D : tutoriel
 
-De l'idée de meuble à la liste de courses et au plan de coupe, en six étapes. Le même guide est dans l'app : bouton **Guide** en bas de la barre d'outils, ou touche **?**. Ses étapes se cochent toutes seules.
+De l'idée de meuble à la liste de courses et au plan de coupe, en six étapes. Le même guide est dans l'app : bouton **Guide** en bas de la colonne d'outils, ou touche **?**. Ses étapes se cochent toutes seules.
+
+## L'écran
+
+- **Barre du haut** : le nom du projet (un point orange signale des modifications non enregistrées), les **quatre étapes** d'un projet (**1 Concevoir, 2 Contrôler, 3 Fabriquer, 4 Acheter**), puis Ouvrir, Enregistrer et le menu **…** (nouveau projet, importer, exporter un `.dae`).
+- **Colonne d'outils à gauche** : sélection, ajuster, échelle, ouvrir, déplacer, rotation, mètre, orbite, panoramique. Le **Mode expert**, en bas, ajoute le dessin libre.
+- **Panneau de droite** : en haut, la pièce ou le meuble sélectionné ; dessous, les actions de l'étape choisie dans la barre du haut.
+- **Barre de vue**, en bas de la 3D : Face, Dessus, Côté, 3D, et les options d'affichage (cotes, repères, vue éclatée).
+- **Barre d'aide**, tout en bas : ce que fait l'outil actif, et ce que l'assistant vient de faire.
 
 ## 1. Créer un meuble
 
-Panneau de droite, **Nouveau meuble…**
+Étape **1 Concevoir**, bouton **Nouveau meuble**
 
 1. Choisis un modèle de départ : Bibliothèque, Dressing, Meuble bas, Commode ou Étagère murale.
 2. Ajuste les cotes en millimètres : largeur, hauteur, profondeur, épaisseur des panneaux.
@@ -82,11 +90,11 @@ Dans **Modifier le meuble…**, chaque colonne a aussi une case de largeur (la v
 
 ## 4. Lire la fiche de débit
 
-Bouton **Fiche de débit** ou touche **D**. Une ligne par groupe de pièces identiques : cotes, quantité, matière, chants. Elle se met à jour à chaque ouverture. Une ligne que tu modifies à la main est conservée. **Export CSV** pour un tableur, **Imprimer** pour l'atelier.
+Étape **3 Fabriquer**, **Fiche de débit** (ou touche **D**). Une ligne par groupe de pièces identiques : cotes, quantité, matière, chants. Elle se met à jour à chaque ouverture. Une ligne que tu modifies à la main est conservée. **Export CSV** pour un tableur, **Imprimer** pour l'atelier.
 
 ## 5. Optimiser la découpe et chiffrer
 
-Bouton **Découpe et coût**.
+Étape **3 Fabriquer**, **Découpe et coût**.
 
 1. **Panneaux** : pour chaque matière, indique le format (2800 × 2070 par exemple), combien tu en as déjà (**En stock**) et le **prix d'achat** d'un panneau neuf. Le bouton « Ajouter ce panneau » reprend la matière exacte des pièces.
 2. **Trait de scie** (3 mm) et **marge de délignage** (10 mm) : à ajuster selon ta scie.
@@ -120,7 +128,7 @@ Une pièce peut être reconnue pour ce qu'elle est : une **porte**, ou la façad
   - poignée (entraxe, ou sans poignée).
 - **Réglages d'un tiroir** : longueur des coulisses, sortie totale ou partielle, poignée.
 - **Ouvrir à la souris** : outil **Ouvrir** (touche **I**). Attrape une porte ou un tiroir et tire pour l'ouvrir, pousse pour le refermer. L'angle ou la sortie s'affiche en bas. Un simple clic l'ouvre ou le ferme en entier.
-- **Ouvrir depuis le panneau** : « Ouvrir » / « Fermer » sur l'élément sélectionné, « Tout ouvrir » et « Tout fermer » dans Affichage. C'est seulement de l'affichage : rien n'est modifié.
+- **Ouvrir depuis le panneau** : « Ouvrir » / « Fermer » sur l'élément sélectionné, « Tout ouvrir » et « Tout fermer » à l'étape 2 Contrôler. C'est seulement de l'affichage : rien n'est modifié.
 - **Sortie des tiroirs** : totale (le tiroir sort de toute la longueur des coulisses, cas des coulisses à billes courantes) ou partielle (environ les 3/4, coulisses plus simples).
 - **Quincaillerie** : charnières, coulisses et poignées sont dessinées à leur place, en gris (bouton « Quincaillerie » pour les cacher). Le panneau donne les **cotes de perçage** :
   - charnières : hauteur de chaque cuvette, distance au chant ;
@@ -132,8 +140,8 @@ Une pièce peut être reconnue pour ce qu'elle est : une **porte**, ou la façad
 
 ## Avant de couper : vérifier, percer, acheter
 
-- **Plafond en pente…** (Affichage) : angle et hauteur mesurés sur place, ou « D'après la pièce sélectionnée » pour reprendre la pente d'un rampant. Le plafond s'affiche en rouge pâle (bouton « Plafond » pour le cacher).
-- **Vérifier** (Fabriquer) :
+- **Plafond en pente…** (étape 2 Contrôler) : angle et hauteur mesurés sur place, ou « D'après la pièce sélectionnée » pour reprendre la pente d'un rampant. Le plafond s'affiche en rouge pâle (bouton « Plafond » pour le cacher).
+- **Vérifier** (étape 2 Contrôler) :
   - pièces qui se traversent ;
   - tablettes de plus de 80 cm entre deux appuis, ou plus de 30 cm en porte-à-faux ; le dessus et le dessous d'un caisson ne comptent pas, ils sont assemblés ;
   - portes trop minces pour des charnières ;
@@ -147,8 +155,8 @@ Une pièce peut être reconnue pour ce qu'elle est : une **porte**, ou la façad
   - quincaillerie ;
   - visserie estimée.
   À imprimer ou à exporter en CSV.
-- **Repères** (Affichage) : la référence de la fiche (P1, P2…) s'affiche sur chaque pièce, pour s'y retrouver au montage.
-- **Vue éclatée** (Affichage) : les pièces s'écartent pour montrer l'assemblage. C'est seulement de l'affichage.
+- **Repères** (barre de vue) : la référence de la fiche (P1, P2…) s'affiche sur chaque pièce, pour s'y retrouver au montage.
+- **Vue éclatée** (barre de vue) : les pièces s'écartent pour montrer l'assemblage. C'est seulement de l'affichage.
 
 ## Masquer des pièces
 
@@ -203,7 +211,7 @@ Sans sélection, c'est la pièce cliquée qui tourne. Avec **Option**, c'est une
 
 Format d'échange : **Collada (.dae)**, lu et écrit par les deux logiciels.
 
-- **Exporter .dae** (panneau Projet, ou Cmd+E) : la sélection, ou tout le modèle. Chaque pièce devient un objet nommé, chaque matière une couleur. Le coin bas avant gauche est à l'origine, en mètres.
+- **Exporter .dae** (menu **…**, ou Cmd+E) : la sélection, ou tout le modèle. Chaque pièce devient un objet nommé, chaque matière une couleur. Le coin bas avant gauche est à l'origine, en mètres.
   - **Sweet Home 3D** : Meubles > Importer un meuble…, choisis le fichier. Vérifie l'orientation et les dimensions dans l'assistant.
   - **SketchUp** : Fichier > Importer…, type « COLLADA (*.dae) ».
 - **Importer .dae** (Cmd+I) : chaque objet du fichier devient une pièce, posée à droite du modèle. Une pièce fermée entre dans la fiche de débit et accepte Pousser/Tirer ; une géométrie ouverte (décor, mur) reste un objet de référence.
@@ -227,7 +235,7 @@ Dans les deux cas :
 
 ## Pour aller plus loin : le mode expert
 
-En bas de la barre d'outils, **Mode expert** ajoute les outils de dessin libre, comme dans SketchUp :
+En bas de la colonne d'outils, **Mode expert** ajoute les outils de dessin libre, comme dans SketchUp :
 
 - **Ligne** (L), **Rectangle** (R), **Cercle** (C) sur le sol ou sur une face.
 - **Pousser/Tirer** (P) : donne de l'épaisseur à une surface, creuse une poche, perce.

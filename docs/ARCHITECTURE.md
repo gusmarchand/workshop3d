@@ -102,6 +102,8 @@ Les commandes Tauri : `open_doc`, `save_doc`, `confirm_discard`, `cle_api`, `def
 
 ## Interface (`main.ts`)
 
+Disposition : barre du haut (`#topbar` : projet, quatre étapes, ouvrir, enregistrer, menu), colonne d'outils (`#toolbar`), vue 3D (`#app`, entre les barres), panneau de droite (`#panel`), barre de vue flottante (`#viewbar`), barre d'aide (`#status`). Les tailles viennent de variables CSS (`--top`, `--rail`, `--side`, `--status`) ; le canevas se redimensionne sur `#app`. `refreshPanel()` reconstruit le panneau (carte de la sélection, puis `actionsEtape()` selon `etape`), la barre du haut (`renderTopbar`) et la barre de vue (`renderViewbar`) ; les boutons gardent leurs identifiants (`p-debit`, `f-save`…) et sont branchés par `on(id, …)`, où qu'ils soient dans la page. Icônes : `src/ui/icones.ts` (Tabler, MIT), à ajouter à la liste avant de les utiliser.
+
 Sections, dans l'ordre du fichier : état et historique, fichiers, Collada, scène (`rebuild` reconstruit toute la scène depuis le document), pointage et accroches, outils (sélection, déplacer, rotation, mètre, pousser/tirer, dessin), outils Ajuster et Échelle, presse-papiers, masquage, clavier, panneau de propriétés, fenêtres annexes, portes et tiroirs (outil Ouvrir), fiche de débit, découpe, assistant de caisson, guide des premiers pas.
 
 L'état est global au module (une trentaine de variables) : un outil est un ensemble de fonctions `clic…`, `bouger…`, `fin…` branchées sur `onDown` / `onMove`, avec Échap pour annuler (`cancelOp`). Le document change toujours par `doc = nouvelDoc` puis `commit()`, qui alimente l'historique, la sauvegarde locale et le titre de la fenêtre.

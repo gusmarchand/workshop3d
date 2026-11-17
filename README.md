@@ -70,7 +70,7 @@ Le dépôt est fait pour être modifié avec Claude Code, comme il a été écri
 
 ```
 src/kernel/    noyau sans DOM : modèle, géométrie, débit, découpe, contrôles (testé)
-src/main.ts    scène Three.js, outils à la souris, panneau de propriétés
+src/main.ts    scène Three.js, outils à la souris, barre du haut, panneau de droite
 src/mcp.ts     outils MCP (partagés avec l'assistant intégré)
 src/ui/        fenêtres annexes, décors, assistant
 src-tauri/     coque Rust : fenêtre, menu, fichiers, serveur MCP

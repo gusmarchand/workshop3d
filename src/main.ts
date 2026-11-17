@@ -4,6 +4,7 @@ import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRe
 import { ColladaLoader } from 'three/examples/jsm/loaders/ColladaLoader.js';
 import { exportCollada, fusionnerSommets } from './kernel/collada';
 import { creerAssistant } from './ui/assistant';
+import { ico, type Icone } from './ui/icones';
 import { decorDe, uvDecor } from './kernel/decor';
 import { MOTIFS, materiauxDecor, uvTriplanaire } from './ui/decors';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -74,6 +75,7 @@ function setDirty(d: boolean) {
   const name = filePath ? filePath.split('/').pop()! : 'Sans titre';
   const title = `${dirty ? '• ' : ''}${name} — Workshop 3D`;
   document.title = title;
+  renderTopbar();
   void tauri?.window.getCurrentWindow().setTitle(title).catch(() => {});
 }
 function fileError(e: unknown) { alertBox(e instanceof Error ? e.message : String(e)); }
@@ -651,7 +653,7 @@ const bxs = (s: string) => `<b>${typed || s}</b>`;
 const HELP: Record<Tool, string> = {
   select: 'Sélection : clic = une pièce, Maj = ajouter ou retirer, Option = ajouter, Maj + Option = retirer. Glisser → : pièces entièrement dans le cadre ; glisser ← : pièces touchées. Double-clic : tout le meuble. Cmd+A : tout. Échap : rien.',
   scale: 'Échelle : des poignées entourent la sélection (ou la pièce, le meuble survolé). Clic sur une poignée, bouge, clic : la poignée opposée reste fixe (Option : depuis le centre). Faces = un axe, coins = proportionnel. Tape un facteur (1,2) ou une cote (1200 mm) + Entrée. Tab : garder les épaisseurs des panneaux (étirer) ou tout agrandir (échelle).',
-  open: 'Ouvrir : attrape une porte ou un tiroir et tire pour l\'ouvrir, pousse pour le fermer. Un simple clic l\'ouvre ou le ferme en entier. Les pièces doivent être reconnues comme porte ou tiroir (panneau de droite).',
+  open: 'Ouvrir : attrape une porte ou un tiroir et tire pour l\'ouvrir, pousse pour le fermer. Un simple clic l\'ouvre ou le ferme en entier. Les pièces doivent être reconnues comme porte ou tiroir (étape 1 Concevoir, panneau de droite).',
   adjust: 'Ajuster : survole un meuble et tire une poignée. Vertes : largeur, hauteur, profondeur. Orange : un montant entre deux colonnes. Clic pour prendre, clic pour poser, ou tape la cote + Entrée. Étagères, tiroirs et portes suivent.',
   line: 'Ligne : cliquer le départ puis chaque point. Saisir une longueur + Entrée. Échap termine.',
   rect: 'Rectangle : cliquer deux coins, ou saisir « largeur ; hauteur » + Entrée.',
@@ -669,7 +671,7 @@ function setTool(t: Tool) {
   cancelOp();
   tool = t;
   controls.mouseButtons.LEFT = t === 'orbit' ? THREE.MOUSE.ROTATE : t === 'pan' ? THREE.MOUSE.PAN : null;
-  helpEl.textContent = HELP[t];
+  helpEl.textContent = HELP[t]; helpEl.title = HELP[t];
   document.querySelectorAll<HTMLButtonElement>('#toolbar button[data-tool]').forEach((b) => b.classList.toggle('on', b.dataset.tool === t));
   renderer.domElement.style.cursor = t === 'orbit' || t === 'pan' ? 'grab' : t === 'select' || t === 'adjust' || t === 'open' || t === 'scale' ? 'default' : 'crosshair';
   if (t === 'adjust') {
@@ -1792,6 +1794,61 @@ function fitAll() {
   camera.position.copy(tv(c)).addScaledVector(dir, r / Math.sin((camera.fov * Math.PI) / 360));
 }
 
+// ───────── Barre du haut, étapes, barre de vue ─────────
+// Quatre étapes dans l'ordre d'un projet ; le panneau de droite montre les actions de l'étape choisie.
+type Etape = 'concevoir' | 'controler' | 'fabriquer' | 'acheter';
+const ETAPES: { id: Etape; label: string }[] = [{ id: 'concevoir', label: 'Concevoir' }, { id: 'controler', label: 'Contrôler' }, { id: 'fabriquer', label: 'Fabriquer' }, { id: 'acheter', label: 'Acheter' }];
+let etape: Etape = 'concevoir';
+try { const e = localStorage.getItem('workshop3d.etape'); if (ETAPES.some((x) => x.id === e)) etape = e as Etape; } catch { /* ignoré */ }
+function renderTopbar() {
+  const bar = document.getElementById('topbar');
+  if (!bar) return;
+  const nom = filePath ? filePath.split('/').pop()!.replace(/\.(workshop|atelier)$/, '') : 'Sans titre';
+  bar.innerHTML = `<div class="marque">${ico('hammer')}Workshop 3D</div>
+    <div class="projet"><b title="${esc(filePath ?? 'Pas encore enregistré')}">${esc(nom)}</b>${dirty ? '<span class="pastille-etat" title="Modifications non enregistrées"></span>' : ''}</div>
+    <div class="etapes" role="tablist">${ETAPES.map((e, i) => `<button role="tab" data-etape="${e.id}" class="${e.id === etape ? 'on' : ''}" aria-selected="${e.id === etape}"><span class="n">${i + 1}</span>${e.label}</button>`).join('')}</div>
+    <button class="icone-btn" id="f-open" title="Ouvrir (Cmd+O)">${ico('folder-open')}<span class="txt">Ouvrir</span></button>
+    <button class="icone-btn" id="f-save" title="Enregistrer (Cmd+S)">${ico('device-floppy')}<span class="txt">Enregistrer</span></button>
+    <button class="icone-btn" id="b-menu" title="Nouveau, importer, exporter" aria-label="Plus">${ico('dots')}</button>`;
+  document.getElementById('menu-plus')!.innerHTML = `<button id="f-new" title="Cmd+N">${ico('file-plus')}Nouveau projet</button>
+    <button id="f-import" title="Cmd+I : fichier .dae (SketchUp, Sweet Home 3D…)">${ico('download')}Importer un .dae</button>
+    <button id="f-export" title="Cmd+E : la sélection, ou tout le modèle">${ico('upload')}Exporter en .dae</button>`;
+}
+function renderViewbar() {
+  const bar = document.getElementById('viewbar');
+  if (!bar) return;
+  const vues = [['face', 'Face', '1'], ['dessus', 'Dessus', '2'], ['cote', 'Côté', '3'], ['iso', '3D', '0']] as const;
+  bar.innerHTML = `<div class="barre">${vues.map(([v, t, k]) => `<button data-vue="${v}" title="Touche ${k}">${t}</button>`).join('')}<span class="sep"></span>
+    <button class="${cotesOn ? 'on' : ''}" id="p-cotes" title="Cotes hors tout (touche K)">${ico('ruler-2')}<span class="txt">Cotes</span></button>
+    <button class="${reperesOn ? 'on' : ''}" id="p-reperes" title="Référence de fiche (P1, P2…) sur chaque pièce">${ico('tag')}<span class="txt">Repères</span></button>
+    <button class="${eclate ? 'on' : ''}" id="p-eclate" title="Écarte les pièces pour voir l'assemblage">${ico('arrows-diagonal')}<span class="txt">Vue éclatée</span></button></div>`;
+}
+document.addEventListener('click', (e) => { const m = document.getElementById('menu-plus'); if (m?.classList.contains('open') && !(e.target instanceof Element && e.target.closest('#b-menu'))) m.classList.remove('open'); });
+// Une action du panneau : icône, titre et une ligne d'explication.
+const action = (id: string, icone: Icone, titre: string, desc: string, primaire = false, tip = '') =>
+  `<button class="action ${primaire ? 'primaire' : ''}" id="${id}"${tip ? ` title="${esc(tip)}"` : ''}>${ico(icone)}<span><div class="t">${titre}</div><div class="d">${desc}</div></span></button>`;
+function actionsEtape(): string {
+  const nbMasques = doc.solids.filter((x) => x.meta.masque).length, nbElements = (doc.elements ?? []).length, aReconnaitre = reconnaitre({ ...doc }).length;
+  const titre = (n: number, t: string) => `<div class="etape-titre">Étape ${n} · ${t}</div>`;
+  if (etape === 'concevoir') return titre(1, 'Concevoir')
+    + action('p-caisson', 'plus', 'Nouveau meuble', 'Caisson, dressing, buffet…', true)
+    + action('p-methods', 'palette', 'Matériaux et couleurs', 'Panneaux, décors, chants')
+    + (aReconnaitre ? action('e-reconnaitre', 'door', `Reconnaître ${aReconnaitre} porte(s) et tiroir(s)`, 'D\'après leurs noms : « Porte… », « Façade tiroir… »') : '')
+    + (nbMasques ? action('p-unhide', 'eye', 'Tout afficher', `${nbMasques} pièce${nbMasques > 1 ? 's' : ''} masquée${nbMasques > 1 ? 's' : ''}`, false, 'Maj+Option+H') : '')
+    + (doc.guides?.length ? action('p-guides', 'ruler-measure', 'Effacer les guides', `${doc.guides.length} guide${doc.guides.length > 1 ? 's' : ''} posé${doc.guides.length > 1 ? 's' : ''}`) : '');
+  if (etape === 'controler') return titre(2, 'Contrôler')
+    + action('p-verif', 'shield-check', 'Vérifier', 'Pièces qui se traversent, portées, portes, plafond', true, 'Pièces qui se traversent, portées, portes, plafond…')
+    + action('p-plafond', 'angle', doc.plafond ? 'Plafond en pente…' : 'Plafond en pente…', doc.plafond ? 'Réglé : les portes ouvertes sont vérifiées dessous' : 'Pour un meuble sous une pente', false, 'Plafond en pente pris comme référence')
+    + `<div class="row">${doc.plafond ? `<button class="btn ${plafondOn ? 'primary' : ''}" id="p-plafond-vis" title="Afficher le plafond de référence">Voir le plafond</button>` : ''}${nbElements ? `<button class="btn" id="e-tout-ouvrir">Tout ouvrir</button><button class="btn" id="e-tout-fermer">Tout fermer</button><button class="btn ${ferruresOn ? 'primary' : ''}" id="e-ferrures" title="Charnières, coulisses et poignées dessinées">Quincaillerie</button>` : ''}</div>`;
+  if (etape === 'fabriquer') return titre(3, 'Fabriquer')
+    + action('p-debit', 'file-spreadsheet', 'Fiche de débit', 'Liste des pièces à couper', true, 'Touche D')
+    + action('p-decoupe', 'scissors', 'Découpe et coût', 'Plan de coupe, panneaux à acheter')
+    + action('p-plans', 'printer', 'Plans à imprimer', 'Trois vues cotées')
+    + action('p-percage', 'circle-dot', 'Fiche de perçage', 'Charnières, coulisses, poignées', false, 'Charnières et poignées des portes et tiroirs (de la sélection, ou tous)');
+  return titre(4, 'Acheter et monter')
+    + action('p-courses', 'shopping-cart', 'Liste de courses', 'Panneaux, chant, quincaillerie, visserie', true)
+    + action('p-notice', 'list-numbers', 'Notice de montage', doc.notice?.length ? `${doc.notice.length} étape${doc.notice.length > 1 ? 's' : ''}` : 'Étapes de montage du projet', false, 'Enregistrée avec le projet');
+}
 // ───────── Panneau de propriétés ─────────
 const panel = document.getElementById('panel')!;
 function refreshPanel() {
@@ -1817,30 +1874,12 @@ function refreshPanel() {
       ${puces([...new Set(sel.map((x) => x.meta.methode ?? 0))].filter(Boolean), '')}
       <div class="row"><button class="btn" id="p-dup" title="Cmd+D">Dupliquer</button><button class="btn" id="p-copy" title="Cmd+C">Copier</button><button class="btn" id="p-hide" title="Maj+H">Masquer</button></div>`;
   }
-  if (sel.length) html += sectionElement(sel);
-  const nbMasques = doc.solids.filter((x) => x.meta.masque).length;
-  const nbElements = (doc.elements ?? []).length, aReconnaitre = reconnaitre({ ...doc }).length;
-  html += `<h3>Concevoir</h3>
-    <button class="btn primary" id="p-caisson">Nouveau meuble…</button>
-    <h3>Fabriquer</h3>
-    <button class="btn" id="p-debit" title="Touche D">Fiche de débit</button>
-    <button class="btn" id="p-decoupe">Découpe et coût</button>
-    <button class="btn" id="p-plans">Plans à imprimer</button>
-    <div class="row"><button class="btn" id="p-verif" title="Pièces qui se traversent, portées, portes, plafond…">Vérifier</button><button class="btn" id="p-percage" title="Charnières et poignées des portes et tiroirs (de la sélection, ou tous)">Fiche de perçage</button></div>
-    <div class="row"><button class="btn" id="p-courses">Liste de courses</button><button class="btn" id="p-notice" title="Étapes de montage, enregistrées avec le projet">Notice de montage${doc.notice?.length ? ` (${doc.notice.length})` : ''}</button></div>
-    <button class="btn" id="p-methods">Matériaux et couleurs…</button>
-    <h3>Affichage</h3>
-    <div class="row">${(['face', 'dessus', 'cote', 'iso'] as const).map((v, i) => `<button class="btn" data-vue="${v}" title="Touche ${['1', '2', '3', '0'][i]}">${['Face', 'Dessus', 'Côté', '3D'][i]}</button>`).join('')}<button class="btn ${cotesOn ? 'primary' : ''}" id="p-cotes" title="Touche K">Cotes</button></div>
-    <div class="row"><button class="btn ${reperesOn ? 'primary' : ''}" id="p-reperes" title="Référence de fiche (P1, P2…) sur chaque pièce">Repères</button><button class="btn ${eclate ? 'primary' : ''}" id="p-eclate" title="Écarte les pièces pour voir l'assemblage">Vue éclatée</button>${doc.plafond ? `<button class="btn ${plafondOn ? 'primary' : ''}" id="p-plafond-vis" title="Afficher le plafond de référence">Plafond</button>` : ''}<button class="btn" id="p-plafond" title="Plafond en pente pris comme référence">${doc.plafond ? 'Pente…' : 'Plafond en pente…'}</button></div>
-    ${nbElements ? `<div class="row"><button class="btn" id="e-tout-ouvrir">Tout ouvrir</button><button class="btn" id="e-tout-fermer">Tout fermer</button><button class="btn ${ferruresOn ? 'primary' : ''}" id="e-ferrures" title="Charnières, coulisses et poignées">Quincaillerie</button></div>` : ''}
-    ${aReconnaitre ? `<button class="btn" id="e-reconnaitre" title="D'après leurs noms : « Porte… », « Façade tiroir… »">Reconnaître ${aReconnaitre} porte(s) et tiroir(s)</button>` : ''}
-    ${nbMasques ? `<button class="btn" id="p-unhide" title="Maj+Option+H">Tout afficher (${nbMasques} pièce${nbMasques > 1 ? 's' : ''} masquée${nbMasques > 1 ? 's' : ''})</button>` : ''}
-    ${doc.guides?.length ? `<button class="btn" id="p-guides">Effacer les guides (${doc.guides.length})</button>` : ''}
-    <h3>Projet</h3>
-    <div class="row"><button class="btn" id="f-new" title="Cmd+N">Nouveau</button><button class="btn" id="f-open" title="Cmd+O">Ouvrir</button><button class="btn" id="f-save" title="Cmd+S">Enregistrer</button></div>
-    <div class="row"><button class="btn" id="f-import" title="Cmd+I : fichier .dae (SketchUp, Sweet Home 3D…)">Importer .dae</button><button class="btn" id="f-export" title="Cmd+E : la sélection, ou tout le modèle">Exporter .dae</button></div>
-    <div class="dims">${doc.solids.filter((x) => x.meta.piece).length} pièce(s) dans le modèle</div>`;
+  if (sel.length) html = `<div class="carte">${html}${sectionElement(sel)}</div>`;
+  else html = `<p class="conseil">Clique une pièce pour la régler, ou double-clique pour sélectionner tout le meuble.</p>`;
+  html += actionsEtape();
   panel.innerHTML = html;
+  renderTopbar();
+  renderViewbar();
 
   const on = (id: string, fn: () => void) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
   if (sel.length === 1) {
@@ -1901,9 +1940,11 @@ function refreshPanel() {
   on('p-decoupe', openDecoupe);
   on('p-plans', () => openPlans(feuille));
   on('p-methods', openMethods);
-  panel.querySelectorAll<HTMLButtonElement>('[data-vue]').forEach((b) => { b.onclick = () => vue(b.dataset.vue as Vue); });
+  document.querySelectorAll<HTMLButtonElement>('#viewbar [data-vue]').forEach((b) => { b.onclick = () => vue(b.dataset.vue as Vue); });
   on('p-cotes', () => { cotesOn = !cotesOn; marquer('cotes'); drawCotes(); refreshPanel(); });
   on('p-guides', () => { doc = { ...doc, guides: [] }; commit(); });
+  document.querySelectorAll<HTMLButtonElement>('#topbar [data-etape]').forEach((b) => { b.onclick = () => { etape = b.dataset.etape as Etape; try { localStorage.setItem('workshop3d.etape', etape); } catch { /* ignoré */ } refreshPanel(); }; });
+  on('b-menu', () => document.getElementById('menu-plus')!.classList.toggle('open'));
   on('f-import', () => void importerDae());
   on('f-export', () => void exporterDae());
   on('f-new', () => void fileNew());
@@ -2036,7 +2077,7 @@ function elementSous(ev: PointerEvent): Element | undefined {
 }
 function prendreOuvrir(ev: PointerEvent) {
   const el = elementSous(ev);
-  if (!el) { setHud('Clique une porte ou un tiroir reconnu (sinon : panneau de droite, « Reconnaître » ou « C\'est une porte »)'); return; }
+  if (!el) { setHud('Clique une porte ou un tiroir reconnu (sinon : étape 1 Concevoir, « Reconnaître », ou « C\'est une porte » dans le panneau de droite)'); return; }
   prise = { el: el.id, x: ev.clientX, y: ev.clientY, x0: ev.clientX, y0: ev.clientY, bouge: false };
   renderer.domElement.style.cursor = 'grabbing';
 }
@@ -2557,7 +2598,7 @@ function openGuide() {
   debitEl.innerHTML = `<div class="sheet" style="width:min(640px,100%)">
     <header><h2>Premiers pas (${n}/${etapes.length})</h2><button class="btn primary" id="g-close">Fermer</button></header>
     <div class="scroll"><ol class="guide">${etapes.map((e, i) => `<li class="${e.fait ? 'fait' : ''}"><div><b>${e.fait ? '✓ ' : ''}${e.titre}</b><p>${e.texte}</p></div>${e.action ? `<button class="btn ${e.fait ? '' : 'primary'}" data-g="${i}">${e.action[0]}</button>` : ''}</li>`).join('')}</ol>
-    <p class="note">Pour dessiner librement (lignes, rectangles, pousser/tirer comme dans SketchUp), active le « Mode expert » en bas de la barre d'outils. Ce guide revient avec la touche ? ou le bouton Guide.</p></div>
+    <p class="note">Pour dessiner librement (lignes, rectangles, pousser/tirer comme dans SketchUp), active le « Mode expert » en bas de la colonne d'outils. Ce guide revient avec la touche ? ou le bouton Guide.</p></div>
   </div>`;
   document.getElementById('g-close')!.onclick = closeDebit;
   debitEl.querySelectorAll<HTMLButtonElement>('[data-g]').forEach((b) => { b.onclick = () => etapes[Number(b.dataset.g)]!.action![1](); });
@@ -2565,21 +2606,22 @@ function openGuide() {
 }
 
 // ───────── Interface ─────────
-const TOOLS: { id: Tool; icon: string; label: string; key: string }[] = [
-  { id: 'select', icon: '↖', label: 'Sélection', key: 'Espace' },
-  { id: 'adjust', icon: '⇔', label: 'Ajuster', key: 'A' },
-  { id: 'scale', icon: '⤢', label: 'Échelle', key: 'S' },
-  { id: 'open', icon: '☝', label: 'Ouvrir', key: 'I' },
-  { id: 'line', icon: '╱', label: 'Ligne', key: 'L' },
-  { id: 'rect', icon: '▭', label: 'Rectangle', key: 'R' },
-  { id: 'circle', icon: '◯', label: 'Cercle', key: 'C' },
-  { id: 'pushpull', icon: '⬍', label: 'Pousser/Tirer', key: 'P' },
-  { id: 'move', icon: '✥', label: 'Déplacer', key: 'M' },
-  { id: 'rotate', icon: '↻', label: 'Rotation', key: 'Q' },
-  { id: 'tape', icon: '⟷', label: 'Mètre', key: 'T' },
-  { id: 'erase', icon: '⌫', label: 'Gomme', key: 'E' },
-  { id: 'orbit', icon: '⟳', label: 'Orbite', key: 'O' },
-  { id: 'pan', icon: '✋', label: 'Panoramique', key: 'H' },
+// `g` : groupe, un séparateur est tracé entre deux groupes visibles
+const TOOLS: { id: Tool; icon: Icone; label: string; key: string; g: number }[] = [
+  { id: 'select', icon: 'pointer', label: 'Sélection', key: 'Espace', g: 0 },
+  { id: 'adjust', icon: 'arrows-horizontal', label: 'Ajuster', key: 'A', g: 0 },
+  { id: 'scale', icon: 'arrows-maximize', label: 'Échelle', key: 'S', g: 0 },
+  { id: 'open', icon: 'door', label: 'Ouvrir', key: 'I', g: 0 },
+  { id: 'line', icon: 'line', label: 'Ligne', key: 'L', g: 1 },
+  { id: 'rect', icon: 'rectangle', label: 'Rectangle', key: 'R', g: 1 },
+  { id: 'circle', icon: 'circle', label: 'Cercle', key: 'C', g: 1 },
+  { id: 'pushpull', icon: 'arrows-vertical', label: 'Pousser/Tirer', key: 'P', g: 1 },
+  { id: 'move', icon: 'arrows-move', label: 'Déplacer', key: 'M', g: 2 },
+  { id: 'rotate', icon: 'rotate-clockwise', label: 'Rotation', key: 'Q', g: 2 },
+  { id: 'tape', icon: 'ruler-measure', label: 'Mètre', key: 'T', g: 2 },
+  { id: 'erase', icon: 'eraser', label: 'Gomme', key: 'E', g: 2 },
+  { id: 'orbit', icon: 'rotate-3d', label: 'Orbite', key: 'O', g: 3 },
+  { id: 'pan', icon: 'hand-stop', label: 'Panoramique', key: 'H', g: 3 },
 ];
 const SIMPLES: Tool[] = ['select', 'adjust', 'scale', 'open', 'move', 'rotate', 'tape', 'orbit', 'pan'];
 let expert = false;
@@ -2587,19 +2629,23 @@ try { expert = localStorage.getItem('workshop3d.expert') === '1'; } catch { /* i
 const tb = document.getElementById('toolbar')!;
 function buildToolbar() {
   tb.innerHTML = '';
+  let groupe = -1;
   for (const t of TOOLS) {
     if (!expert && !SIMPLES.includes(t.id)) continue;
+    if (groupe >= 0 && t.g !== groupe) tb.appendChild(document.createElement('hr'));
+    groupe = t.g;
     const b = document.createElement('button');
     b.dataset.tool = t.id;
     b.title = `${t.label} (touche ${t.key})`;
-    b.innerHTML = `<span class="ico" aria-hidden="true">${t.icon}</span><span class="lbl">${t.label}</span>`;
+    b.innerHTML = `${ico(t.icon)}<span class="lbl">${t.label}</span>`;
     b.onclick = () => setTool(t.id);
     tb.appendChild(b);
   }
+  tb.appendChild(Object.assign(document.createElement('div'), { className: 'ressort' }));
   const m = document.createElement('button');
   m.className = 'mode';
   m.title = expert ? 'Revenir aux outils essentiels' : 'Afficher les outils de dessin libre (ligne, rectangle, pousser/tirer…)';
-  m.innerHTML = `<span class="lbl">${expert ? 'Mode simple' : 'Mode expert'}</span>`;
+  m.innerHTML = `${ico('pencil')}<span class="lbl">${expert ? 'Mode simple' : 'Mode expert'}</span>`;
   m.onclick = () => {
     expert = !expert;
     try { localStorage.setItem('workshop3d.expert', expert ? '1' : '0'); } catch { /* ignoré */ }
@@ -2610,7 +2656,7 @@ function buildToolbar() {
   const h = document.createElement('button');
   h.className = 'mode';
   h.title = 'Guide des premiers pas (touche ?)';
-  h.innerHTML = '<span class="ico" aria-hidden="true">?</span><span class="lbl">Guide</span>';
+  h.innerHTML = `${ico('help-circle')}<span class="lbl">Guide</span>`;
   h.onclick = openGuide;
   tb.appendChild(h);
 }
