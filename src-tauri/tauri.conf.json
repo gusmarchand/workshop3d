@@ -20,7 +20,8 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost https://api.anthropic.com; worker-src 'self' blob:",
+      "devCsp": null
     },
     "withGlobalTauri": true
   },

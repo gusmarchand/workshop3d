@@ -84,8 +84,7 @@ Détail, modèle de document, pièges : [docs/ARCHITECTURE.md](docs/ARCHITECTURE
 Ce qui reste à améliorer, dans l'ordre où je le ferais :
 
 - **Découper `main.ts`** (environ 2700 lignes, état global) en modules d'outils.
-- **Plafonner la boucle d'outils de l'assistant** et lui faire demander confirmation avant les suppressions.
-- **Resserrer la sécurité de la webview** : une politique CSP (`security.csp` est à `null`), et la clé API dans le Trousseau macOS plutôt qu'un fichier.
+- **Clé API dans le Trousseau macOS** plutôt que dans un fichier de droits 600.
 - **Un meuble paramétrique plus riche** : dessus en traverses, plinthe continue, côtés entaillés, hauteurs de tiroir libres, matériau propre aux caissons de tiroir. Aujourd'hui ces variantes se font à la main et sont perdues si on régénère le meuble.
 - **Découpe** : essayer chaque format de panneau disponible et garder le moins cher ; autoriser des matières équivalentes.
 - **Tests** : l'interface et `main.ts` ne sont vérifiés qu'à la main.

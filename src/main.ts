@@ -10,10 +10,10 @@ import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.j
 import { repondre as repondreMcp, type Ctx as CtxMcp, type Vue as VueMcp } from './mcp';
 import wasmUrl from 'manifold-3d/manifold.wasm?url';
 import {
-  REGLAGES_DEFAUT, SIDES, materiauDe, sidesOf, type Materiau,
-  estManifold, sansMeublesVides, visibles, couleurDe, couleurParNom, materiauNomme, duplicateSolid, instancesOf, makeComponent, makeUnique, moveSolid, propagate, rotateSolid,
+  REGLAGES_DEFAUT, SIDES, materiauDe, sidesOf,
+  estManifold, sansMeublesVides, visibles, couleurDe, couleurParNom, materiauNomme, instancesOf, makeComponent, makeUnique, moveSolid, propagate, rotateSolid,
   addSegments, boxMesh, cloneDoc, emptyDoc, faceContains, initKernel, meshBounds, pieceDims, planarFaces, planeFromNormal,
-  planeRegions, pushPullRegion, regionOnSolid, rotateMesh, splitSegments, to2, to3, translateMesh, add, sub, mul, dot, cross, len, norm,
+  planeRegions, pushPullRegion, regionOnSolid, splitSegments, to2, to3, translateMesh, add, sub, mul, dot, cross, len, norm,
   type CaissonRec, type Doc, type Extra, type Guide, type Plane, type Solid, type V3, type PlanarFace,
 } from './kernel/model';
 import { boiteDe, transformer, type ModeEchelle } from './kernel/echelle';
@@ -26,7 +26,7 @@ import { regionAt, type P2, type Region, type Seg2 } from './kernel/arrangement'
 import { coutChant, refsDesPieces, syncFromModel, toCsv, totals, type DebitRow } from './kernel/debit';
 import { parse, serialize, type Saved } from './kernel/file';
 import { appliquerDecoupe, chutesDe, planDecoupe, type Bin } from './kernel/nesting';
-import { CAISSON_DEFAUT, MODELES, deplacerMontant, fixerLargeur, genererCaisson, verifier, videsColonnes, type CaissonParams, type TypeColonne } from './kernel/cabinet';
+import { CAISSON_DEFAUT, MODELES, fixerLargeur, genererCaisson, verifier, videsColonnes, type CaissonParams, type TypeColonne } from './kernel/cabinet';
 
 // ───────── État ─────────
 let doc: Doc = emptyDoc();

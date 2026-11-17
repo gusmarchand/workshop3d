@@ -22,6 +22,11 @@ Tu agis sur le projet ouvert avec tes outils. Cotes en mm. Repère : X largeur, 
 - Raisonne comme un menuisier : épaisseurs et formats réels des panneaux, jeux, quincaillerie, ordre de montage, économie de matière.
 - Réponds en français, court et concret, sans Markdown lourd.`;
 
+// Au plus ce nombre d'allers-retours d'outils pour une demande : garde-fou contre un modèle qui tourne en boucle (et coûte).
+const MAX_TOURS = 25;
+// Outils qui suppriment ou recréent des données : l'utilisateur confirme avant chaque appel (tout reste annulable par Cmd+Z).
+const A_CONFIRMER = new Set(['supprimer', 'supprimer_lignes_fiche', 'effacer_traits', 'modifier_meuble']);
+
 const OUTILS_API: BetaTool[] = OUTILS.map((o) => ({
   name: o.name,
   description: o.description,
@@ -43,6 +48,7 @@ export function creerAssistant(h: Hote) {
   let historique: BetaMessageParam[] = [];
   let enCours: { abort(): void } | null = null;
   let arrete = false, actif = false;
+  let attente: ((ok: boolean) => void) | null = null;   // confirmation en cours
 
   h.el.innerHTML = `<header><b>✦ Assistant</b><span class="vide"></span>
       <button class="btn" data-nouveau title="Nouvelle conversation">Nouveau</button>
@@ -79,6 +85,22 @@ export function creerAssistant(h: Hote) {
   // Le navigateur de l'app parle directement à l'API : pas de serveur intermédiaire, la clé est celle de l'utilisateur.
   const nouveauClient = (apiKey: string) => new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
 
+  // Demande dans la conversation s'il faut exécuter l'outil ; « Arrêter » compte comme un refus.
+  function autoriser(nom: string, args: unknown): Promise<boolean> {
+    return new Promise((ok) => {
+      const f = document.createElement('div');
+      f.className = 'msg systeme';
+      const resume = JSON.stringify(args ?? {}).slice(0, 160);
+      f.innerHTML = `<p><b>${esc(TITRES.get(nom) ?? nom)}</b> : l'assistant veut agir sur le projet.</p><p class="note">${esc(resume)}</p>
+        <div class="row"><button class="btn primary" data-oui>Autoriser</button><button class="btn" data-non>Refuser</button></div>`;
+      const fin = (v: boolean) => { attente = null; f.querySelector('.row')!.remove(); const r = document.createElement('p'); r.textContent = v ? 'Autorisé.' : 'Refusé.'; f.append(r); ok(v); };
+      f.querySelector<HTMLButtonElement>('[data-oui]')!.onclick = () => fin(true);
+      f.querySelector<HTMLButtonElement>('[data-non]')!.onclick = () => fin(false);
+      attente = fin;
+      fil.append(f); bas();
+    });
+  }
+
   async function demande(): Promise<BetaMessage> {
     const flux = client!.beta.messages.stream({
       model: MODELE,
@@ -106,7 +128,7 @@ export function creerAssistant(h: Hote) {
   }
 
   async function boucle(avant: number) {
-    let essais = 0;
+    let essais = 0, tours = 0;
     for (;;) {
       let m: BetaMessage;
       try { m = await demande(); essais = 0; } catch (e) {
@@ -133,17 +155,23 @@ export function creerAssistant(h: Hote) {
       const resultats: BetaToolResultBlockParam[] = [];
       for (const b of appels) {
         if (b.type !== 'tool_use') continue;
+        if (A_CONFIRMER.has(b.name) && !(await autoriser(b.name, b.input))) {
+          ligne('msg outil rate', `⚙ ${TITRES.get(b.name) ?? b.name} — refusé`);
+          resultats.push(versApi(b.id, { content: [{ type: 'text', text: 'L\'utilisateur a refusé cette action.' }], isError: true }));
+          continue;
+        }
         const r = appeler(h.ctx, b.name, b.input);
         ligne(`msg outil${r.isError ? ' rate' : ''}`, `⚙ ${TITRES.get(b.name) ?? b.name}${r.isError ? ' — échec' : ''}`);
         resultats.push(versApi(b.id, r));
       }
       historique.push({ role: 'user', content: resultats });
       if (arrete) return;
+      if (++tours >= MAX_TOURS) { ligne('msg systeme', `Arrêté après ${MAX_TOURS} allers-retours d'outils. Écris « continue » pour reprendre.`); return; }
     }
   }
 
   async function soumettre() {
-    if (actif) { arrete = true; enCours?.abort(); return; }
+    if (actif) { arrete = true; enCours?.abort(); attente?.(false); return; }
     const texte = zone.value.trim();
     if (!texte) return;
     if (!client) { const cle = await h.lireCle(); if (cle) client = nouveauClient(cle); }
