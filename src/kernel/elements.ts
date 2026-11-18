@@ -17,7 +17,7 @@ export type Element = Porte | Tiroir;
 export const RECOUVREMENTS: Record<Recouvrement, string> = { applique: 'en applique', demi: 'demi-applique', encastree: 'encastrée' };
 export const ENTRAXES = [0, 96, 128, 160, 192, 256, 320];
 export const COULISSES = [250, 300, 350, 400, 450, 500, 550, 600, 650];
-export const OUVERTURES = [95, 110, 155, 170];
+export const OUVERTURES = [90, 95, 110, 155, 170];   // 90 = charnière 110° bridée par un clip : portes voisines côte à côte
 // Course d'un tiroir, en mm.
 export const course = (t: Tiroir) => (t.sortie === 'partielle' ? Math.round(t.coulisse * 0.75) : t.coulisse);
 

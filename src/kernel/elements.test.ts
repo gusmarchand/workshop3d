@@ -138,6 +138,15 @@ describe('portes et tiroirs', () => {
     expect(apres.find((e) => e.cle === t0.cle)!.id).not.toBe(t0.id);
   });
 
+  it('charnière bridée à 90° : acceptée au rechargement, la porte s\'ouvre de 90°', () => {
+    const { d, porte } = meuble();
+    d.elements = [{ id: 7, type: 'porte', piece: porte.id, charnieres: 'droite', recouvrement: 'applique', ouverture: 90, entraxe: 128 }];
+    const rel = parse(serialize({ doc: d, debit: [] })).doc;
+    expect((rel.elements![0] as Porte).ouverture).toBe(90);
+    const pose = poseOuverte(rel, rel.elements![0]!)!;
+    expect(pose.kind === 'rotation' && Math.round((pose.angle * 180) / Math.PI)).toBe(90);
+  });
+
   it('copie : l\'élément suit ses pièces copiées, perd le lien au meuble si le meuble n\'est pas copié', () => {
     const { d, porte } = meuble();
     d.elements = [{ id: 7, type: 'porte', caisson: 3, cle: 'porte:0:0', piece: porte.id, charnieres: 'droite', recouvrement: 'demi', ouverture: 155, entraxe: 192 }];
