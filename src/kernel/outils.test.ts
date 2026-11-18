@@ -78,6 +78,17 @@ describe('contrôle', () => {
     expect(c[0]!.pas).toBeGreaterThan(0);
   });
 
+  it('appui : un tasseau de 45 mm de contact compte, un chant de 30 mm non', () => {
+    const d = emptyDoc();
+    piece(d, 'Côté', [0, 0, 0], [600, 18, 800]); piece(d, 'Côté', [0, 1018, 0], [600, 1036, 800]);
+    const t = piece(d, 'Tablette', [0, 0, 800], [600, 1036, 818]);
+    const mont = piece(d, 'Montant caché', [550, 509, 0], [595, 527, 800]);
+    expect(Math.round(porteeLibre(d, t)!.portee * 1000)).toBe(491);
+    d.solids.splice(d.solids.indexOf(mont), 1);
+    piece(d, 'Chant debout', [560, 509, 0], [590, 527, 800]);
+    expect(Math.round(porteeLibre(d, t)!.portee * 1000)).toBe(1000);
+  });
+
   it('pas d\'alerte de portée pour le dessus ou le dessous d\'un caisson', () => {
     const d = emptyDoc();
     piece(d, 'Côté', [0, 0, 0], [600, 18, 1000]);

@@ -31,7 +31,7 @@ export function porteeLibre(d: Doc, t: Solid): { portee: number; porteAFaux: num
         return axeMince(hb) === 2 && Math.abs(hb.min[2]! - o.max[2]!) < 0.001 && recouvre(hb, o, 0) > 0.001 && recouvre(hb, o, 1) > 0.001;
       });
       const cote = recouvre(o, b, 2) > 0.001 && (Math.abs(o.max[long]! - b.min[long]!) < 0.001 || Math.abs(o.min[long]! - b.max[long]!) < 0.001);
-      if ((dessous || suspente || cote) && recouvre(o, b, autre) > 0.05) {
+      if ((dessous || suspente || cote) && recouvre(o, b, autre) > 0.04) {
         appuis.push([Math.max(o.min[long]!, b.min[long]!), Math.min(o.max[long]!, b.max[long]!)]);
         if (cote) { haut = Math.max(haut, o.max[2]!); bas = Math.min(bas, o.min[2]!); bouts++; }
       }
