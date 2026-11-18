@@ -87,6 +87,8 @@ Ce qui reste à améliorer, dans l'ordre où je le ferais :
 - **Clé API dans le Trousseau macOS** plutôt que dans un fichier de droits 600.
 - **Meubles paramétriques** : le générateur sait maintenant les traverses hautes, la plinthe unique avec côtés entaillés, les hauteurs de tiroir libres et des matières propres aux façades et aux caissons de tiroir. Restent à faire : des tiroirs de hauteurs différentes selon la colonne, des angles, des meubles hauts.
 - **Découpe** : essayer chaque format de panneau disponible et garder le moins cher ; autoriser des matières équivalentes.
+- **Interface** : la fiche de débit, le perçage, la vérification et la notice sont encore de grandes fenêtres ; les passer dans le panneau latéral, comme les matériaux.
+- **Contrôle** : `verifier` balaie les portes à l'ouverture, pas encore les tiroirs.
 - **Tests** : l'interface et `main.ts` ne sont vérifiés qu'à la main.
 - **Version téléchargeable** : publier un `.app` signé depuis la CI.
 
