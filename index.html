@@ -72,6 +72,10 @@
   #debit input.couleur { width: 36px; height: 24px; padding: 0; border: 1px solid var(--line); cursor: pointer; }
   #debit { position: fixed; z-index: 10; inset: 0; background: #0006; display: none; place-items: center; padding: 24px; }
   #debit.open { display: grid; }
+  /* tiroir latéral : prend la place du panneau, la 3D reste utilisable */
+  #debit.lateral { inset: var(--top) 0 var(--status) auto; width: var(--side); padding: 0; background: none; display: none; place-items: stretch; }
+  #debit.lateral.open { display: block; }
+  #debit.lateral .sheet { width: 100%; height: 100%; max-height: none; border-radius: 0; border-width: 0 0 0 1px; }
   #debit .sheet { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; width: min(1100px, 100%); max-height: 100%; display: flex; flex-direction: column; overflow: hidden; }
   #debit header { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); }
   #debit header h2 { margin: 0 auto 0 0; font-size: 15px; }

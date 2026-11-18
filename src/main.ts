@@ -2309,7 +2309,7 @@ function openDebit() {
   syncDebit();
   if (JSON.stringify(debit) !== before) commit();
   renderDebit(); debitEl.classList.add('open'); }
-function closeDebit() { debitEl.classList.remove('open'); }
+function closeDebit() { debitEl.classList.remove('open', 'lateral'); }
 
 // ───────── Méthodes de fabrication ─────────
 const fenetreMateriaux: FenetreMateriaux = { get el() { return debitEl; }, doc: () => doc, fiche: () => syncFromModel(doc, debit, rowId), appliquer(d) { doc = d; commit(); }, fermer: closeDebit };

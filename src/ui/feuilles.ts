@@ -22,9 +22,11 @@ export interface Feuille {
 export const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const nombre = (v: string) => { const n = parseFloat(v.replace(',', '.')); return Number.isFinite(n) ? n : NaN; };
 const euro = (n: number) => `${n.toFixed(2).replace('.', ',')} €`;
-const ouvrir = (f: Feuille, titre: string, boutons: string, corps: string, pied = '') => {
+// `lateral` : tiroir à droite, à la place du panneau, la 3D reste visible et cliquable (liste de contrôles, réglages courts).
+const ouvrir = (f: Feuille, titre: string, boutons: string, corps: string, pied = '', lateral = false) => {
   f.el.innerHTML = `<div class="sheet"><header><h2>${titre}</h2>${boutons}<button class="btn primary" data-fermer>Fermer</button></header><div class="scroll">${corps}</div>${pied ? `<footer>${pied}</footer>` : ''}</div>`;
   f.el.querySelector<HTMLElement>('[data-fermer]')!.onclick = () => f.fermer();
+  f.el.classList.toggle('lateral', lateral);
   f.el.classList.add('open');
 };
 const imprimer = '<button class="btn" data-imprimer>Imprimer</button>';
@@ -41,7 +43,7 @@ export function ouvrirPlafond(f: Feuille) {
     <label>le long de l'axe <select id="pl-axe"><option value="0" ${p.axe === 0 ? 'selected' : ''}>X (rouge)</option><option value="1" ${p.axe === 1 ? 'selected' : ''}>Y (vert)</option></select></label>
     <label>La pente monte vers <select id="pl-sens"><option value="1" ${p.sens === 1 ? 'selected' : ''}>les + de l'axe</option><option value="-1" ${p.sens === -1 ? 'selected' : ''}>les − de l'axe</option></select></label>
     <div class="row"><button class="btn" id="pl-piece" title="Sélectionne d'abord une pièce inclinée posée sous le plafond">D'après la pièce sélectionnée</button><button class="btn primary" id="pl-ok">Enregistrer</button>${d.plafond ? '<button class="btn" id="pl-sans">Retirer le plafond</button>' : ''}</div>
-    <p class="warn" id="pl-err"></p></div>`);
+    <p class="warn" id="pl-err"></p></div>`, '', true);
   const v = (id: string) => (document.getElementById(id) as HTMLInputElement).value;
   const err = (m: string) => { document.getElementById('pl-err')!.textContent = m; };
   document.getElementById('pl-ok')!.onclick = () => {
@@ -68,9 +70,9 @@ export function ouvrirVerification(f: Feuille) {
   ouvrir(f, 'Vérification', imprimer, ps.length
     ? `<table><tbody>${ps.map(ligne).join('')}</tbody></table>`
     : '<p>Rien à signaler : pas de pièces qui se traversent, portées raisonnables, portes et tiroirs cohérents.</p>',
-  `<span class="note">Contrôles : pièces qui se traversent, tablettes de plus de 80 cm sans appui ou en porte-à-faux de plus de 30 cm, épaisseur des portes pour les charnières, ${d.plafond ? 'plafond (pièces et ouvertures)' : 'plafond (non saisi : bouton « Plafond… »)'}, pièces sans matériau.</span>`);
+  `<span class="note">Contrôles : pièces qui se traversent, tablettes de plus de 80 cm sans appui ou en porte-à-faux de plus de 30 cm, épaisseur des portes pour les charnières, ${d.plafond ? 'plafond (pièces et ouvertures)' : 'plafond (non saisi : bouton « Plafond… »)'}, pièces sans matériau.</span>`, true);
   lierImpression(f);
-  f.el.querySelectorAll<HTMLElement>('[data-montrer]').forEach((b) => { b.onclick = () => { f.fermer(); f.montrer(ps[Number(b.dataset.montrer)]!.ids); }; });
+  f.el.querySelectorAll<HTMLElement>('[data-montrer]').forEach((b) => { b.onclick = () => f.montrer(ps[Number(b.dataset.montrer)]!.ids); });
 }
 
 // ───────── Fiche de perçage ─────────
