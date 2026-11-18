@@ -50,35 +50,41 @@ export function porteeLibre(d: Doc, t: Solid): { portee: number; porteAFaux: num
   return { portee, porteAFaux: Math.max(appuis[0]![0] - b.min[long]!, b.max[long]! - fin), fixe };
 }
 
-// Portes ouvertes : chaque porte balaie son ouverture (quatre pas) ; elle ne doit toucher ni une pièce fixe,
-// ni une autre porte ouverte au même moment (deux portes charnières côte à côte, aux joints entre meubles).
-// Retourne pour chaque couple le premier pas en collision, en degrés.
-export function collisionsOuverture(d: Doc): { porte: Element; autre: Solid | Element; angle: number; volume: number }[] {
+// Portes et tiroirs ouverts : chaque élément balaie son ouverture (quatre pas) ; il ne doit toucher ni une pièce fixe,
+// ni un autre élément ouvert au même moment (deux portes charnières côte à côte, aux joints entre meubles).
+// Retourne pour chaque couple le premier pas en collision : angle en degrés pour une porte, % de sortie pour un tiroir.
+export interface Collision { el: Element; autre: Solid | Element; pas: number; volume: number }
+export function collisionsOuverture(d: Doc): Collision[] {
   const PAS = 4, SEUIL = 5e-7;
-  const portes = (d.elements ?? []).filter((e) => e.type === 'porte');
-  const piecesPortes = new Set(portes.flatMap((e) => piecesDe(e)));
-  const fixes = d.solids.filter((s) => !s.meta.masque && !piecesPortes.has(s.id)).map((s) => ({ s, b: meshBounds(s.mesh) }));
-  const sortie: { porte: Element; autre: Solid | Element; angle: number; volume: number }[] = [];
+  const elements = d.elements ?? [];
+  const mobiles = new Set(elements.flatMap((e) => piecesDe(e)));
+  const fixes = d.solids.filter((s) => !s.meta.masque && !mobiles.has(s.id)).map((s) => ({ s, b: meshBounds(s.mesh) }));
+  const sortie: Collision[] = [];
   const vus = new Set<string>();
+  const touche = (a: { mesh: MeshData; b: Boite }, b: { mesh: MeshData; b: Boite }) =>
+    [0, 1, 2].every((i) => recouvre(a.b, b.b, i) > 0.0002) ? volumeCommun(a.mesh, b.mesh) : 0;
   for (let k = 1; k <= PAS; k++) {
-    const ouvertes = portes.flatMap((el) => {
-      const s = d.solids.find((x) => x.id === piecesDe(el)[0]), pose = poseOuverte(d, el, k / PAS);
-      if (!s || s.meta.masque || !pose) return [];
-      const v: number[] = [];
-      for (let i = 0; i < s.mesh.v.length; i += 3) v.push(...appliquerPose(pose, [s.mesh.v[i]!, s.mesh.v[i + 1]!, s.mesh.v[i + 2]!]));
-      const mesh: MeshData = { v, t: s.mesh.t };
-      return [{ el, mesh, b: meshBounds(mesh), angle: Math.round((k / PAS) * el.ouverture) }];
+    const ouverts = elements.map((el) => {
+      const pose = poseOuverte(d, el, k / PAS);
+      const corps = piecesDe(el).flatMap((id) => {
+        const s = d.solids.find((x) => x.id === id);
+        if (!s || s.meta.masque || !pose) return [];
+        const v: number[] = [];
+        for (let i = 0; i < s.mesh.v.length; i += 3) v.push(...appliquerPose(pose, [s.mesh.v[i]!, s.mesh.v[i + 1]!, s.mesh.v[i + 2]!]));
+        const mesh: MeshData = { v, t: s.mesh.t };
+        return [{ mesh, b: meshBounds(mesh) }];
+      });
+      return { el, corps, pas: el.type === 'porte' ? Math.round((k / PAS) * el.ouverture) : (k * 100) / PAS };
     });
-    const touche = (a: MeshData, ab: ReturnType<typeof meshBounds>, b: MeshData, bb: ReturnType<typeof meshBounds>) =>
-      [0, 1, 2].every((i) => recouvre(ab, bb, i) > 0.0002) ? volumeCommun(a, b) : 0;
-    ouvertes.forEach((o, i) => {
+    ouverts.forEach((o, i) => {
+      const note = (cle: string, autre: Solid | Element, pas: number, vol: number) => { if (vol > SEUIL && !vus.has(cle)) { vus.add(cle); sortie.push({ el: o.el, autre, pas, volume: vol }); } };
       for (const f of fixes) {
-        const cle = `${o.el.id}:s${f.s.id}`, vol = vus.has(cle) ? 0 : touche(o.mesh, o.b, f.s.mesh, f.b);
-        if (vol > SEUIL) { vus.add(cle); sortie.push({ porte: o.el, autre: f.s, angle: o.angle, volume: vol }); }
+        if (vus.has(`${o.el.id}:s${f.s.id}`)) continue;
+        note(`${o.el.id}:s${f.s.id}`, f.s, o.pas, Math.max(0, ...o.corps.map((c) => touche(c, { mesh: f.s.mesh, b: f.b }))));
       }
-      for (const p of ouvertes.slice(i + 1)) {
-        const cle = `${o.el.id}:e${p.el.id}`, vol = vus.has(cle) ? 0 : touche(o.mesh, o.b, p.mesh, p.b);
-        if (vol > SEUIL) { vus.add(cle); sortie.push({ porte: o.el, autre: p.el, angle: Math.max(o.angle, p.angle), volume: vol }); }
+      for (const p of ouverts.slice(i + 1)) {
+        if (vus.has(`${o.el.id}:e${p.el.id}`)) continue;
+        note(`${o.el.id}:e${p.el.id}`, p.el, Math.max(o.pas, p.pas), Math.max(0, ...o.corps.flatMap((c) => p.corps.map((e) => touche(c, e)))));
       }
     });
   }
@@ -113,12 +119,15 @@ export function controler(d: Doc, plafond?: Plafond): Probleme[] {
     if (el.type === 'tiroir' && !el.pieces.length) out.push({ niveau: 'attention', message: `Tiroir « ${main.name} » sans caisson : seule la façade est identifiée.`, ids });
     if (el.type === 'porte' && repere(d, main, ids, el.sens).e < 0.008) out.push({ niveau: 'attention', message: `« ${main.name} » : moins de 8 mm d'épaisseur.`, ids });
   }
-  // portes qui se gênent en s'ouvrant
+  // portes et tiroirs qui se gênent en s'ouvrant
   const nomDe = (e: Element) => d.solids.find((x) => x.id === piecesDe(e)[0])?.name ?? e.type;
   for (const c of collisionsOuverture(d)) {
-    const autre = 'type' in c.autre ? `la porte « ${nomDe(c.autre)} »` : `« ${c.autre.name} »`;
-    const ids = [...piecesDe(c.porte), ...('type' in c.autre ? piecesDe(c.autre) : [c.autre.id])];
-    out.push({ niveau: 'attention', message: `« ${nomDe(c.porte)} » touche ${autre} en s'ouvrant (vers ${c.angle}°) : limite l'ouverture (charnière bridée à 90°) ou écarte les portes.`, ids });
+    const ae = 'type' in c.autre ? c.autre : null, as = ae ? null : (c.autre as Solid);
+    const autre = ae ? `${ae.type === 'porte' ? 'la porte' : 'le tiroir'} « ${nomDe(ae)} »` : `« ${as!.name} »`;
+    const ids = [...piecesDe(c.el), ...(ae ? piecesDe(ae) : [as!.id])];
+    const quand = c.el.type === 'porte' ? `vers ${c.pas}°` : `à ${c.pas} % de sa sortie`;
+    const piste = c.el.type === 'porte' ? 'limite l\'ouverture (charnière bridée à 90°) ou écarte les portes.' : 'vérifie la profondeur et la place devant le tiroir.';
+    out.push({ niveau: 'attention', message: `« ${nomDe(c.el)} » touche ${autre} en s'ouvrant (${quand}) : ${piste}`, ids });
   }
   // plafond
   if (plafond) {

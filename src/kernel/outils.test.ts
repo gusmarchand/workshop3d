@@ -5,7 +5,7 @@ import { collisionsOuverture, controler, porteeLibre } from './controle';
 import { fichePercage } from './percage';
 import { liaisons, listeCourses } from './courses';
 import { refsDesPieces, syncFromModel } from './debit';
-import type { Porte } from './elements';
+import type { Element, Porte } from './elements';
 
 beforeAll(async () => { await initKernel(); });
 const m = (v: number[]) => v.map((x) => x / 1000) as V3;
@@ -60,11 +60,22 @@ describe('contrôle', () => {
     const el = (id: number, piece: number, charnieres: 'gauche' | 'droite', ouverture: number): Porte => ({ id, type: 'porte', piece, charnieres, recouvrement: 'applique', ouverture, entraxe: 128 });
     d.elements = [el(50, a.id, 'droite', 110), el(51, b.id, 'gauche', 110)];      // vu depuis -X : « droite » = Y haut
     expect(controler(d).filter((x) => x.message.includes('en s\'ouvrant'))).toHaveLength(1);
-    expect(collisionsOuverture(d)[0]).toMatchObject({ angle: 110 });
+    expect(collisionsOuverture(d)[0]).toMatchObject({ pas: 110 });
     d.elements = [el(50, a.id, 'droite', 90), el(51, b.id, 'gauche', 90)];
     expect(collisionsOuverture(d)).toHaveLength(0);
     d.elements = [el(50, a.id, 'gauche', 110), el(51, b.id, 'droite', 110)];      // charnières vers l'extérieur
     expect(collisionsOuverture(d)).toHaveLength(0);
+  });
+
+  it('un tiroir qui sort contre un obstacle fixe est signalé, pas sans obstacle', () => {
+    const d = emptyDoc();
+    const fa = piece(d, 'Façade', [-18, 0, 0], [0, 400, 200]), fond = piece(d, 'Fond tiroir', [0, 20, 10], [400, 380, 18]);
+    d.elements = [{ id: 60, type: 'tiroir', facade: fa.id, pieces: [fond.id], coulisse: 400, entraxe: 128, sens: -1 } as Element];
+    expect(collisionsOuverture(d)).toHaveLength(0);
+    piece(d, 'Mur', [-300, -50, -50], [-250, 450, 300]);
+    const c = collisionsOuverture(d);
+    expect(c).toHaveLength(1);
+    expect(c[0]!.pas).toBeGreaterThan(0);
   });
 
   it('pas d\'alerte de portée pour le dessus ou le dessous d\'un caisson', () => {

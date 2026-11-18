@@ -75,7 +75,7 @@ Un `Element` est une porte (une pièce) ou un tiroir (façade et pièces du cais
 
 ## Contrôles et documents d'atelier
 
-- `controle.ts` : pièces qui se traversent (intersection exacte avec manifold), portée libre des tablettes, portes qui se touchent en s'ouvrant (`collisionsOuverture` : chaque porte balaie son ouverture en quatre pas contre les pièces fixes et les autres portes ouvertes ; les tiroirs ne sont pas balayés).
+- `controle.ts` : pièces qui se traversent (intersection exacte avec manifold), portée libre des tablettes, portes et tiroirs qui se touchent en s'ouvrant (`collisionsOuverture` : chaque élément balaie son ouverture en quatre pas contre les pièces fixes et les autres éléments ouverts).
 - `plafond.ts` : plan en pente, vérification que pièces et portes ouvertes restent dessous.
 - `percage.ts` : trous dans le repère de la porte vue de face. `courses.ts` : liste d'achat.
 
