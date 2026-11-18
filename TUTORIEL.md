@@ -1,14 +1,14 @@
 # Workshop 3D : tutoriel
 
-De l'idée de meuble à la liste de courses et au plan de coupe, en six étapes. Le même guide est dans l'app : bouton **Guide** en bas de la colonne d'outils, ou touche **?**. Ses étapes se cochent toutes seules.
+De l'idée de meuble à la liste de courses et au plan de coupe, en quatre étapes. Le même guide, avec les raccourcis clavier, est dans l'app : bouton **Guide** en bas de la colonne d'outils, ou touche **?**. Les étapes se cochent toutes seules dans la barre du haut.
 
 ## L'écran
 
-- **Barre du haut** : le nom du projet (un point orange signale des modifications non enregistrées), les **quatre étapes** d'un projet (**1 Concevoir, 2 Contrôler, 3 Fabriquer, 4 Acheter**), puis Ouvrir, Enregistrer et le menu **…** (nouveau projet, importer, exporter un `.dae`).
-- **Colonne d'outils à gauche** : sélection, ajuster, échelle, ouvrir, déplacer, rotation, mètre, orbite, panoramique. Le **Mode expert**, en bas, ajoute le dessin libre.
+- **Barre du haut** : le nom du projet (un point orange signale des modifications non enregistrées), les **quatre étapes** d'un projet (**1 Concevoir, 2 Contrôler, 3 Fabriquer, 4 Acheter**), puis l'**Assistant** (Claude, dans l'app), Ouvrir, Enregistrer et le menu **…** (nouveau projet, importer, exporter un `.dae`).
+- **Colonne d'outils à gauche** : sélection, ajuster, échelle, portes (ouvrir et fermer portes et tiroirs), déplacer, rotation, mètre, orbite, panoramique. Le **Mode expert**, en bas, ajoute le dessin libre.
 - **Panneau de droite** : en haut, la pièce ou le meuble sélectionné ; dessous, les actions de l'étape choisie dans la barre du haut.
 - **Barre de vue**, en bas de la 3D : Face, Dessus, Côté, 3D, et les options d'affichage (cotes, repères, vue éclatée).
-- **Barre d'aide**, tout en bas : ce que fait l'outil actif, et ce que l'assistant vient de faire.
+- **Barre d'aide**, tout en bas : ce que fait l'outil actif. Les confirmations (enregistré, ce que l'assistant vient de faire) s'affichent un instant en haut de la vue.
 
 ## 1. Créer un meuble
 
@@ -54,15 +54,15 @@ Avec une seule pièce sélectionnée, à droite :
 - **Modifier le meuble…** : rouvre le formulaire et recrée le meuble avec les nouvelles cotes, à sa place. Les retouches faites à la main sur ses pièces sont perdues.
 - **Tout le meuble** : sélectionne toutes ses pièces, par exemple pour le déplacer avec l'outil **Déplacer** (touche M).
 
-Dans **Nouveau meuble…**, les pastilles sous « Matière des panneaux » et « Matière du fond » proposent les matériaux du projet et les matériaux courants.
+Le formulaire **Nouveau meuble** s'ouvre dans le panneau de droite, et **le meuble se dessine en direct** dans la vue (aperçu translucide) : tu peux tourner autour pendant que tu règles. Les pastilles de matériaux remplissent le champ que tu viens de toucher (panneaux, façades, fond…). Les réglages rares sont dans « Options ».
 
-**Matériaux et couleurs…** : un matériau, c'est un panneau acheté et une couleur, la même sur les faces et sur les chants.
+**Matériaux et panneaux…** : un matériau, c'est une couleur (la même sur les faces et sur les chants), un décor, des bords plaqués, et le **panneau acheté** avec ses formats, son stock et ses prix. C'est ici, et seulement ici, qu'on indique les prix des panneaux.
 
 - **Ajouter** : un clic sur un matériau courant (mélaminé blanc, chêne, gris, noir ; MDF à peindre ; contreplaqué ; HDF), ou **+ Autre**.
 - **Couleur** : clique sur la pastille de la ligne pour la changer. Toutes les pièces de ce matériau changent de couleur.
 - **Décor** : l'aspect à l'écran, veinage du bois massif, lames du lamellé-collé, plis du contreplaqué sur les chants, MDF brut, ou uni pour le peint et le mélaminé. « Auto » le devine d'après le nom du matériau. Le fil suit le sens choisi pour chaque pièce. C'est seulement de l'affichage : la fiche et la découpe ne changent pas.
-- **Panneau acheté** : le nom qui relie les pièces au stock de « Découpe et coût ». Deux matériaux peuvent partager le même panneau, par exemple un MDF 10 peint en vert et un MDF 10 peint en blanc : ils se découpent dans les mêmes panneaux, et la fiche les sépare par couleur.
-- **Bords plaqués** : les côtés qui reçoivent un chant par défaut.
+- **Panneau acheté** : le nom qui relie les pièces au stock. Dessous, ses **formats** (épaisseur, longueur, largeur), ce que tu as déjà (**En stock**) et le **prix d'achat** d'un panneau neuf. Si un format manque pour des pièces, l'app te le dit et propose les formats courants. Deux matériaux peuvent partager le même panneau, par exemple un MDF 10 peint en vert et un MDF 10 peint en blanc : ils se découpent dans les mêmes panneaux, et la fiche les sépare par couleur.
+- **Bords plaqués** : clique les côtés du schéma qui reçoivent un chant par défaut (en bleu = plaqué). Même schéma pour une pièce seule, dans le panneau de droite.
 - **Réglages du chant** : nom, épaisseur et prix du chant, et « Déduire le chant » pour que la fiche donne des cotes de coupe.
 
 ### Mettre à l'échelle, étirer (toutes les pièces)
@@ -94,11 +94,11 @@ Dans **Modifier le meuble…**, chaque colonne a aussi une case de largeur (la v
 
 ## 5. Optimiser la découpe et chiffrer
 
-Étape **3 Fabriquer**, **Découpe et coût**.
+Étape **3 Fabriquer**, **Plan de découpe**.
 
-1. **Panneaux** : pour chaque matière, indique le format (2800 × 2070 par exemple), combien tu en as déjà (**En stock**) et le **prix d'achat** d'un panneau neuf. Le bouton « Ajouter ce panneau » reprend la matière exacte des pièces.
-2. **Trait de scie** (3 mm) et **marge de délignage** (10 mm) : à ajuster selon ta scie.
-3. **Quincaillerie** : déjà listée par le meuble, il reste à mettre les prix.
+1. **Panneaux et prix…** ouvre « Matériaux et panneaux » : formats, stock et prix d'achat. Sans format pour une matière, le plan te le signale.
+2. **Réglages de découpe** : **trait de scie** (3 mm) et **marge de délignage** (10 mm), à ajuster selon ta scie.
+3. Le coût complet (panneaux, chant, quincaillerie) est dans **Courses et coût** (étape 4), bouton du même nom.
 4. Les **plans de coupe** s'affichent, un par panneau : coupes droites de bord à bord, faisables à la scie sur rail. Le stock est utilisé avant tout achat.
    Chaque pièce porte le nom qu'elle a dans la fiche de débit, avec ses cotes ; une légende numérotée suit chaque plan. ↻ signale une pièce tournée.
    - **Pièce trop grande** pour tous tes panneaux (un dessus de 3 m, par exemple) : l'app propose de la couper en morceaux égaux, à assembler ensuite, et les place. Décoche « Couper les pièces trop grandes » pour l'éviter.
@@ -134,7 +134,7 @@ Une pièce peut être reconnue pour ce qu'elle est : une **porte**, ou la façad
   - charnières : hauteur de chaque cuvette, distance au chant ;
   - coulisses : hauteur de leur axe ;
   - poignées : position des deux trous.
-- **Liste d'achat** : charnières, coulisses et poignées s'ajoutent toutes seules à « Découpe et coût » et se mettent à jour à chaque réglage. Les prix saisis sont gardés.
+- **Liste d'achat** : charnières, coulisses et poignées s'ajoutent toutes seules à « Courses et coût » et se mettent à jour à chaque réglage. Les prix saisis sont gardés.
 - **Charnières à cuvette** : il faut une porte d'au moins 16 mm d'épaisseur ; le panneau prévient si elle est plus mince.
 - **Double-clic** sur une porte ou un tiroir : toutes ses pièces sont sélectionnées.
 
@@ -149,11 +149,12 @@ Une pièce peut être reconnue pour ce qu'elle est : une **porte**, ou la façad
   - pièces sans matériau.
   « Montrer » sélectionne les pièces en cause.
 - **Fiche de perçage** : chaque porte et façade vue de face. Les cuvettes de charnières et les trous de poignée sont cotés depuis le coin bas gauche, avec le tableau des trous. C'est pour la sélection, ou pour toutes les portes et façades. À imprimer pour l'atelier.
-- **Liste de courses** :
-  - panneaux à acheter, d'après la découpe ;
-  - chant, avec 10 % de marge ;
-  - quincaillerie ;
-  - visserie estimée.
+- **Courses et coût** (étape 4 Acheter) : tout l'argent du projet, avec les prix modifiables sur place :
+  - panneaux à acheter, d'après la découpe (le prix d'un format se règle ici ou dans « Matériaux et panneaux ») ;
+  - chant, avec 10 % de marge (prix au mètre) ;
+  - quincaillerie, avec des lignes à ajouter ;
+  - visserie estimée, sans prix.
+  Le total est en bas de la fenêtre ; **Export CSV** pour un tableur.
   À imprimer ou à exporter en CSV.
 - **Repères** (barre de vue) : la référence de la fiche (P1, P2…) s'affiche sur chaque pièce, pour s'y retrouver au montage.
 - **Vue éclatée** (barre de vue) : les pièces s'écartent pour montrer l'assemblage. C'est seulement de l'affichage.

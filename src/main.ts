@@ -5,13 +5,14 @@ import { ColladaLoader } from 'three/examples/jsm/loaders/ColladaLoader.js';
 import { exportCollada, fusionnerSommets } from './kernel/collada';
 import { creerAssistant } from './ui/assistant';
 import { ico, type Icone } from './ui/icones';
+import { brancherChants, chantsSvg } from './ui/chants';
 import { decorDe, uvDecor } from './kernel/decor';
 import { MOTIFS, materiauxDecor, uvTriplanaire } from './ui/decors';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { repondre as repondreMcp, type Ctx as CtxMcp, type Vue as VueMcp } from './mcp';
 import wasmUrl from 'manifold-3d/manifold.wasm?url';
 import {
-  REGLAGES_DEFAUT, SIDES, materiauDe, sidesOf,
+  REGLAGES_DEFAUT, materiauDe, sidesOf,
   estManifold, sansMeublesVides, visibles, couleurDe, couleurParNom, materiauNomme, instancesOf, makeComponent, makeUnique, moveSolid, propagate, rotateSolid,
   addSegments, boxMesh, cloneDoc, emptyDoc, faceContains, initKernel, meshBounds, pieceDims, planarFaces, planeFromNormal,
   planeRegions, pushPullRegion, regionOnSolid, splitSegments, to2, to3, translateMesh, add, sub, mul, dot, cross, len, norm,
@@ -24,7 +25,7 @@ import { openPlans } from './ui/plans';
 import { ouvrirCourses, ouvrirNotice, ouvrirPercage, ouvrirPlafond, ouvrirVerification, type Feuille } from './ui/feuilles';
 import { hauteurPlafond } from './kernel/plafond';
 import { regionAt, type P2, type Region, type Seg2 } from './kernel/arrangement';
-import { coutChant, refsDesPieces, syncFromModel, toCsv, totals, type DebitRow } from './kernel/debit';
+import { refsDesPieces, syncFromModel, toCsv, totals, type DebitRow } from './kernel/debit';
 import { parse, serialize, type Saved } from './kernel/file';
 import { appliquerDecoupe, chutesDe, planDecoupe, type Bin } from './kernel/nesting';
 import { CAISSON_DEFAUT, MODELES, fixerLargeur, genererCaisson, maillePanneau, verifier, videsColonnes, type CaissonParams, type TypeColonne } from './kernel/cabinet';
@@ -125,7 +126,16 @@ async function fileSave(saveAs = false) {
       a.download = 'modele.workshop'; a.click(); URL.revokeObjectURL(a.href);
     }
     persist(); setDirty(false);
+    toast(`Enregistré : ${filePath ? filePath.split('/').pop() : 'modele.workshop'}`);
   } catch (e) { fileError(e); }
+}
+// Message court et temporaire, en haut de la vue ; l'aide de l'outil reste dans la barre du bas.
+let toastTimer = 0;
+function toast(msg: string, ms = 3000) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg; el.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = window.setTimeout(() => el.classList.remove('on'), ms);
 }
 // ───────── Collada (.dae) : échange avec SketchUp et Sweet Home 3D ─────────
 // Export : la sélection (ou tout le modèle), une pièce par objet, une couleur par matière, en mètres, Z vers le haut.
@@ -454,6 +464,7 @@ function rebuild() {
     }
   }
   for (const s of visibles(d)) {
+    if (caissonOuvert && caissonEdit && s.meta.caisson === caissonEdit) continue;
     const g = new THREE.BufferGeometry();
     const isSel = selected.has(s.id);
     const isHover = !isSel && (s.id === hoverId || hoverIds.has(s.id));
@@ -653,7 +664,7 @@ const bxs = (s: string) => `<b>${typed || s}</b>`;
 const HELP: Record<Tool, string> = {
   select: 'Sélection : clic = une pièce, Maj = ajouter ou retirer, Option = ajouter, Maj + Option = retirer. Glisser → : pièces entièrement dans le cadre ; glisser ← : pièces touchées. Double-clic : tout le meuble. Cmd+A : tout. Échap : rien.',
   scale: 'Échelle : des poignées entourent la sélection (ou la pièce, le meuble survolé). Clic sur une poignée, bouge, clic : la poignée opposée reste fixe (Option : depuis le centre). Faces = un axe, coins = proportionnel. Tape un facteur (1,2) ou une cote (1200 mm) + Entrée. Tab : garder les épaisseurs des panneaux (étirer) ou tout agrandir (échelle).',
-  open: 'Ouvrir : attrape une porte ou un tiroir et tire pour l\'ouvrir, pousse pour le fermer. Un simple clic l\'ouvre ou le ferme en entier. Les pièces doivent être reconnues comme porte ou tiroir (étape 1 Concevoir, panneau de droite).',
+  open: 'Portes : attrape une porte ou un tiroir et tire pour l\'ouvrir, pousse pour le fermer. Un simple clic l\'ouvre ou le ferme en entier. Les pièces doivent être reconnues comme porte ou tiroir (étape 1 Concevoir, panneau de droite).',
   adjust: 'Ajuster : survole un meuble et tire une poignée. Vertes : largeur, hauteur, profondeur. Orange : un montant entre deux colonnes. Clic pour prendre, clic pour poser, ou tape la cote + Entrée. Étagères, tiroirs et portes suivent.',
   line: 'Ligne : cliquer le départ puis chaque point. Saisir une longueur + Entrée. Échap termine.',
   rect: 'Rectangle : cliquer deux coins, ou saisir « largeur ; hauteur » + Entrée.',
@@ -1787,6 +1798,9 @@ function fitAll() {
   const lo: V3 = [Infinity, Infinity, Infinity], hi: V3 = [-Infinity, -Infinity, -Infinity];
   const vis = visibles(doc).length ? visibles(doc) : doc.solids;
   for (const s of vis) { const b = meshBounds(s.mesh); for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k]!, b.min[k]!); hi[k] = Math.max(hi[k]!, b.max[k]!); } }
+  fitBox(lo, hi);
+}
+function fitBox(lo: V3, hi: V3) {
   const c = mul(add(lo, hi), 0.5);
   const r = Math.max(len(sub(hi, lo)) / 2, 0.2);
   const dir = camera.position.clone().sub(controls.target).normalize();
@@ -1800,24 +1814,40 @@ type Etape = 'concevoir' | 'controler' | 'fabriquer' | 'acheter';
 const ETAPES: { id: Etape; label: string }[] = [{ id: 'concevoir', label: 'Concevoir' }, { id: 'controler', label: 'Contrôler' }, { id: 'fabriquer', label: 'Fabriquer' }, { id: 'acheter', label: 'Acheter' }];
 let etape: Etape = 'concevoir';
 try { const e = localStorage.getItem('workshop3d.etape'); if (ETAPES.some((x) => x.id === e)) etape = e as Etape; } catch { /* ignoré */ }
+// Une étape est faite quand on a fait son geste principal (le projet a des pièces, la vérification a été lancée…).
+const etapeFaite = (e: Etape) => e === 'concevoir' ? doc.solids.length > 0 : e === 'controler' ? !!faits.verif : e === 'fabriquer' ? !!faits.fabrique : (!!faits.courses || (doc.stock ?? []).some((p) => p.prix > 0));
+let assistantOuvert = false;
+let assistantRef: { basculer(): void } | null = null;
 function renderTopbar() {
   const bar = document.getElementById('topbar');
   if (!bar) return;
   const nom = filePath ? filePath.split('/').pop()!.replace(/\.(workshop|atelier)$/, '') : 'Sans titre';
   bar.innerHTML = `<div class="marque">${ico('hammer')}Workshop 3D</div>
     <div class="projet"><b title="${esc(filePath ?? 'Pas encore enregistré')}">${esc(nom)}</b>${dirty ? '<span class="pastille-etat" title="Modifications non enregistrées"></span>' : ''}</div>
-    <div class="etapes" role="tablist">${ETAPES.map((e, i) => `<button role="tab" data-etape="${e.id}" class="${e.id === etape ? 'on' : ''}" aria-selected="${e.id === etape}"><span class="n">${i + 1}</span>${e.label}</button>`).join('')}</div>
-    <button class="icone-btn" id="f-open" title="Ouvrir (Cmd+O)">${ico('folder-open')}<span class="txt">Ouvrir</span></button>
+    <div class="etapes" role="tablist">${ETAPES.map((e, i) => `<button role="tab" data-etape="${e.id}" class="${e.id === etape ? 'on' : ''}" aria-selected="${e.id === etape}"><span class="n">${etapeFaite(e.id) ? '✓' : i + 1}</span>${e.label}</button>`).join('')}</div>
+    <button class="icone-btn ${assistantOuvert ? 'actif' : ''}" id="btn-assistant" title="Assistant Claude : décris ce que tu veux, il agit sur le projet">${ico('sparkles')}<span class="txt">Assistant</span></button>
+    <button class="icone-btn" id="f-open" title="Ouvrir un projet (Cmd+O)">${ico('folder-open')}<span class="txt">Ouvrir</span></button>
     <button class="icone-btn" id="f-save" title="Enregistrer (Cmd+S)">${ico('device-floppy')}<span class="txt">Enregistrer</span></button>
     <button class="icone-btn" id="b-menu" title="Nouveau, importer, exporter" aria-label="Plus">${ico('dots')}</button>`;
   document.getElementById('menu-plus')!.innerHTML = `<button id="f-new" title="Cmd+N">${ico('file-plus')}Nouveau projet</button>
     <button id="f-import" title="Cmd+I : fichier .dae (SketchUp, Sweet Home 3D…)">${ico('download')}Importer un .dae</button>
     <button id="f-export" title="Cmd+E : la sélection, ou tout le modèle">${ico('upload')}Exporter en .dae</button>`;
+  // la barre est refaite aussi quand le projet change d'état (point orange) : elle branche elle-même ses boutons
+  const sur = (id: string, fn: () => void) => { document.getElementById(id)!.onclick = fn; };
+  bar.querySelectorAll<HTMLButtonElement>('[data-etape]').forEach((b) => { b.onclick = () => { etape = b.dataset.etape as Etape; try { localStorage.setItem('workshop3d.etape', etape); } catch { /* ignoré */ } refreshPanel(); }; });
+  sur('b-menu', () => document.getElementById('menu-plus')!.classList.toggle('open'));
+  sur('btn-assistant', () => assistantRef?.basculer());
+  sur('f-open', () => void fileOpen());
+  sur('f-save', () => void fileSave());
+  sur('f-new', () => void fileNew());
+  sur('f-import', () => void importerDae());
+  sur('f-export', () => void exporterDae());
 }
 function renderViewbar() {
   const bar = document.getElementById('viewbar');
   if (!bar) return;
   const vues = [['face', 'Face', '1'], ['dessus', 'Dessus', '2'], ['cote', 'Côté', '3'], ['iso', '3D', '0']] as const;
+  bar.style.display = doc.solids.length || caissonOuvert ? '' : 'none';   // rien à regarder dans un projet vide
   bar.innerHTML = `<div class="barre">${vues.map(([v, t, k]) => `<button data-vue="${v}" title="Touche ${k}">${t}</button>`).join('')}<span class="sep"></span>
     <button class="${cotesOn ? 'on' : ''}" id="p-cotes" title="Cotes hors tout (touche K)">${ico('ruler-2')}<span class="txt">Cotes</span></button>
     <button class="${reperesOn ? 'on' : ''}" id="p-reperes" title="Référence de fiche (P1, P2…) sur chaque pièce">${ico('tag')}<span class="txt">Repères</span></button>
@@ -1832,7 +1862,7 @@ function actionsEtape(): string {
   const titre = (n: number, t: string) => `<div class="etape-titre">Étape ${n} · ${t}</div>`;
   if (etape === 'concevoir') return titre(1, 'Concevoir')
     + action('p-caisson', 'plus', 'Nouveau meuble', 'Caisson, dressing, buffet…', true)
-    + action('p-methods', 'palette', 'Matériaux et couleurs', 'Panneaux, décors, chants')
+    + action('p-methods', 'palette', 'Matériaux et panneaux', 'Couleurs, décors, formats et prix')
     + (aReconnaitre ? action('e-reconnaitre', 'door', `Reconnaître ${aReconnaitre} porte(s) et tiroir(s)`, 'D\'après leurs noms : « Porte… », « Façade tiroir… »') : '')
     + (nbMasques ? action('p-unhide', 'eye', 'Tout afficher', `${nbMasques} pièce${nbMasques > 1 ? 's' : ''} masquée${nbMasques > 1 ? 's' : ''}`, false, 'Maj+Option+H') : '')
     + (doc.guides?.length ? action('p-guides', 'ruler-measure', 'Effacer les guides', `${doc.guides.length} guide${doc.guides.length > 1 ? 's' : ''} posé${doc.guides.length > 1 ? 's' : ''}`) : '');
@@ -1842,40 +1872,42 @@ function actionsEtape(): string {
     + `<div class="row">${doc.plafond ? `<button class="btn ${plafondOn ? 'primary' : ''}" id="p-plafond-vis" title="Afficher le plafond de référence">Voir le plafond</button>` : ''}${nbElements ? `<button class="btn" id="e-tout-ouvrir">Tout ouvrir</button><button class="btn" id="e-tout-fermer">Tout fermer</button><button class="btn ${ferruresOn ? 'primary' : ''}" id="e-ferrures" title="Charnières, coulisses et poignées dessinées">Quincaillerie</button>` : ''}</div>`;
   if (etape === 'fabriquer') return titre(3, 'Fabriquer')
     + action('p-debit', 'file-spreadsheet', 'Fiche de débit', 'Liste des pièces à couper', true, 'Touche D')
-    + action('p-decoupe', 'scissors', 'Découpe et coût', 'Plan de coupe, panneaux à acheter')
+    + action('p-decoupe', 'scissors', 'Plan de découpe', 'Où couper chaque pièce, panneaux à acheter')
     + action('p-plans', 'printer', 'Plans à imprimer', 'Trois vues cotées')
     + action('p-percage', 'circle-dot', 'Fiche de perçage', 'Charnières, coulisses, poignées', false, 'Charnières et poignées des portes et tiroirs (de la sélection, ou tous)');
   return titre(4, 'Acheter et monter')
-    + action('p-courses', 'shopping-cart', 'Liste de courses', 'Panneaux, chant, quincaillerie, visserie', true)
+    + action('p-courses', 'shopping-cart', 'Courses et coût', 'Quantités, prix et total du projet', true)
     + action('p-notice', 'list-numbers', 'Notice de montage', doc.notice?.length ? `${doc.notice.length} étape${doc.notice.length > 1 ? 's' : ''}` : 'Étapes de montage du projet', false, 'Enregistrée avec le projet');
 }
 // ───────── Panneau de propriétés ─────────
 const panel = document.getElementById('panel')!;
 function refreshPanel() {
+  if (caissonOuvert) { renderTopbar(); return; }   // le formulaire de meuble occupe le panneau
   const sel = doc.solids.filter((s) => selected.has(s.id));
   let html = '';
   if (sel.length === 1) {
     const s = sel[0]!;
     const d = pieceDims(s.mesh);
     const cais = s.meta.caisson && (doc.caissons ?? []).some((c) => c.id === s.meta.caisson);
-    html += `<h3>Pièce sélectionnée</h3>
-      <label>Nom <input id="p-nom" value="${esc(s.name)}"></label>
-      <div class="dims">${fmt(d.L)} × ${fmt(d.l)} × ${fmt(d.e)} ${unit().name}</div>
+    const filFil = ([['aucun', 'Peu importe'], ['L', 'Dans la longueur'], ['l', 'Dans la largeur']] as const).map(([v, t]) => `<option value="${v}" ${v === s.meta.fil ? 'selected' : ''}>${t}</option>`).join('');
+    html += `<div class="carte-tete"><input id="p-nom" value="${esc(s.name)}" aria-label="Nom de la pièce"><span class="dims">${fmt(d.L)} × ${fmt(d.l)} × ${fmt(d.e)} ${unit().name}</span></div>
       ${puces(s.meta.methode ? [s.meta.methode] : [], !s.meta.methode && s.meta.matiere ? s.meta.matiere : '')}
-      <label title="L1 et L2 : les deux grands côtés ; l1 et l2 : les deux petits">Chants <span id="p-chants" style="display:flex;gap:8px">${SIDES.map((k) => `<label style="display:flex;gap:3px;grid-template-columns:none"><input type="checkbox" data-side="${k}" ${sidesOf(doc, s).includes(k) ? 'checked' : ''}>${k}</label>`).join('')}</span></label>
-      <label title="Sens du fil du bois : le long de la longueur (L) ou de la largeur (l)">Fil du bois <select id="p-fil">${([['aucun', 'Peu importe'], ['L', 'Dans la longueur'], ['l', 'Dans la largeur']] as const).map(([v, t]) => `<option value="${v}" ${v === s.meta.fil ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
-      <label>Note <input id="p-note" value="${esc(s.meta.note)}"></label>
-      <label>Dans la fiche <input id="p-piece" type="checkbox" ${s.meta.piece ? 'checked' : ''}></label>
+      <div class="ligne-chants"><div><div class="note">Bords plaqués</div>${chantsSvg(sidesOf(doc, s))}</div>
+        <label title="Sens du fil du bois : le long de la longueur (L) ou de la largeur (l)">Fil du bois <select id="p-fil">${filFil}</select></label></div>
       ${cais ? `<div class="row"><button class="btn" id="p-cais-mod">Modifier le meuble…</button><button class="btn" id="p-cais-sel">Tout le meuble</button></div>` : ''}
       <div class="row"><button class="btn" id="p-dup" title="Cmd+D">Dupliquer</button><button class="btn" id="p-copy" title="Cmd+C">Copier</button><button class="btn" id="p-hide" title="Maj+H">Masquer</button></div>
-      ${expert ? `<button class="btn" id="p-comp" title="G">${s.comp ? `Rendre unique (${instancesOf(doc, s).length} copies liées)` : 'Créer un composant (G)'}</button>` : ''}`;
+      <details class="plus"><summary>Plus de réglages</summary>
+        <label>Note <input id="p-note" value="${esc(s.meta.note)}"></label>
+        <label title="Décoche pour une pièce de décor ou de référence, qui ne se coupe pas">Dans la fiche de débit <input id="p-piece" type="checkbox" ${s.meta.piece ? 'checked' : ''}></label>
+        ${expert ? `<button class="btn" id="p-comp" title="G">${s.comp ? `Rendre unique (${instancesOf(doc, s).length} copies liées)` : 'Créer un composant (G)'}</button>` : ''}
+      </details>`;
   } else if (sel.length > 1) {
     html += `<h3>${sel.length} pièces sélectionnées</h3>
       ${puces([...new Set(sel.map((x) => x.meta.methode ?? 0))].filter(Boolean), '')}
       <div class="row"><button class="btn" id="p-dup" title="Cmd+D">Dupliquer</button><button class="btn" id="p-copy" title="Cmd+C">Copier</button><button class="btn" id="p-hide" title="Maj+H">Masquer</button></div>`;
   }
   if (sel.length) html = `<div class="carte">${html}${sectionElement(sel)}</div>`;
-  else html = `<p class="conseil">Clique une pièce pour la régler, ou double-clique pour sélectionner tout le meuble.</p>`;
+  else html = doc.solids.length ? `<p class="conseil">Clique une pièce pour la régler, ou double-clique pour sélectionner tout le meuble.</p>` : `<p class="conseil"><b>Ton projet est vide.</b><br>Crée un meuble : choisis un modèle (bibliothèque, dressing, commode…) puis ajuste ses cotes. Ou importe un modèle .dae avec le menu « … ».</p>`;
   html += actionsEtape();
   panel.innerHTML = html;
   renderTopbar();
@@ -1888,14 +1920,14 @@ function refreshPanel() {
       s.name = (document.getElementById('p-nom') as HTMLInputElement).value;
       s.meta.piece = (document.getElementById('p-piece') as HTMLInputElement).checked;
       s.meta.fil = (document.getElementById('p-fil') as HTMLSelectElement).value as 'L' | 'l' | 'aucun';
-      const picked = [...document.querySelectorAll<HTMLInputElement>('#p-chants input:checked')].map((c) => c.dataset.side!).join(' ');
+      const picked = [...document.querySelectorAll<SVGElement>('#panel svg.chants .cote.on')].map((c) => c.dataset.side!).join(' ');
       if (picked === (materiauDe(doc, s)?.cotes ?? '')) delete s.meta.chants; else s.meta.chants = picked;
       s.meta.note = (document.getElementById('p-note') as HTMLInputElement).value;
       propagate(doc, s.id);
       commitQuiet();
     };
     for (const id of ['p-nom', 'p-piece', 'p-fil', 'p-note']) { const el = document.getElementById(id); if (el) el.onchange = upd; }
-    document.querySelectorAll<HTMLInputElement>('#p-chants input').forEach((c) => { c.onchange = upd; });
+    brancherChants(panel, upd);
     on('p-comp', () => toggleComponent([s]));
     const cid = s.meta.caisson;
     if (cid) {
@@ -1915,9 +1947,9 @@ function refreshPanel() {
   on('p-mat-new', () => openMethods());
   on('p-hide', masquerSelection);
   lierElement(sel);
-  on('p-verif', () => ouvrirVerification(feuille));
+  on('p-verif', () => { marquer('verif'); ouvrirVerification(feuille); renderTopbar(); });
   on('p-percage', () => ouvrirPercage(feuille));
-  on('p-courses', () => ouvrirCourses(feuille));
+  on('p-courses', () => { marquer('courses'); ouvrirCourses(feuille); renderTopbar(); });
   on('p-notice', () => ouvrirNotice(feuille));
   on('p-plafond', () => ouvrirPlafond(feuille));
   on('p-plafond-vis', () => { plafondOn = !plafondOn; rebuild(); refreshPanel(); });
@@ -1943,13 +1975,6 @@ function refreshPanel() {
   document.querySelectorAll<HTMLButtonElement>('#viewbar [data-vue]').forEach((b) => { b.onclick = () => vue(b.dataset.vue as Vue); });
   on('p-cotes', () => { cotesOn = !cotesOn; marquer('cotes'); drawCotes(); refreshPanel(); });
   on('p-guides', () => { doc = { ...doc, guides: [] }; commit(); });
-  document.querySelectorAll<HTMLButtonElement>('#topbar [data-etape]').forEach((b) => { b.onclick = () => { etape = b.dataset.etape as Etape; try { localStorage.setItem('workshop3d.etape', etape); } catch { /* ignoré */ } refreshPanel(); }; });
-  on('b-menu', () => document.getElementById('menu-plus')!.classList.toggle('open'));
-  on('f-import', () => void importerDae());
-  on('f-export', () => void exporterDae());
-  on('f-new', () => void fileNew());
-  on('f-open', () => void fileOpen());
-  on('f-save', () => void fileSave());
 }
 // ───────── Fenêtres annexes (src/ui/feuilles.ts) ─────────
 // Enregistre un fichier texte : dialogue natif dans l'app Mac, téléchargement dans le navigateur.
@@ -1968,6 +1993,7 @@ const feuille: Feuille = {
   montrer(ids) { selected.clear(); for (const i of ids) if (!doc.solids.find((s) => s.id === i)?.meta.masque) selected.add(i); rebuild(); refreshPanel(); },
   fermer: closeDebit,
   telecharger,
+  ouvrirMateriaux: () => openMethods(),
 };
 
 // ───────── Outil Échelle (façon SketchUp) ─────────
@@ -2132,23 +2158,24 @@ function sectionElement(sel: Solid[]): string {
   const el = elementSel(sel);
   if (!el) {
     if (sel.some((x) => elementDe(doc, x.id))) return '';
-    return `<h3>Fonction</h3><div class="row"><button class="btn" id="e-porte" ${sel.length === 1 ? '' : 'disabled title="Sélectionne une seule pièce"'}>C'est une porte</button><button class="btn" id="e-tiroir" title="Sélectionne la façade (et si besoin le caisson du tiroir)">C'est un tiroir</button></div>`;
+    return `<details class="plus"><summary>C'est une porte ou un tiroir ?</summary><div class="row"><button class="btn" id="e-porte" ${sel.length === 1 ? '' : 'disabled title="Sélectionne une seule pièce"'}>C'est une porte</button><button class="btn" id="e-tiroir" title="Sélectionne la façade (et si besoin le caisson du tiroir)">C'est un tiroir</button></div></details>`;
   }
   const ouvert = (ouverts.get(el.id) ?? 0) > 0;
   const cotes = ferrures(doc, el).map((f) => `<p>${esc(f.cote)}</p>`).join('');
-  const commun = `<div class="row"><button class="btn" id="e-ouvrir">${ouvert ? 'Fermer' : 'Ouvrir'}</button><button class="btn" id="e-sens" title="Si la quincaillerie est dessinée du mauvais côté">Inverser intérieur / extérieur</button><button class="btn" id="e-retirer">Ce n'est plus un${el.type === 'porte' ? 'e porte' : ' tiroir'}</button></div>
-    <div class="cotes">${cotes}</div>`;
-  if (el.type === 'porte') return `<h3>Porte</h3>
+  const commun = `<div class="row"><button class="btn" id="e-sens" title="Si la quincaillerie est dessinée du mauvais côté">Inverser intérieur / extérieur</button><button class="btn" id="e-retirer">Ce n'est plus un${el.type === 'porte' ? 'e porte' : ' tiroir'}</button></div>
+    <details class="plus"><summary>Cotes de perçage</summary><div class="cotes">${cotes}</div></details>`;
+  const ouvrirBtn = `<button class="btn primary" id="e-ouvrir" title="Ouvre ou ferme à l'écran (l'outil Portes le fait à la souris)">${ouvert ? 'Fermer' : 'Ouvrir'} ${el.type === 'porte' ? 'la porte' : 'le tiroir'}</button>`;
+  if (el.type === 'porte') return `<div class="etape-titre">Porte</div>${ouvrirBtn}<details class="plus"><summary>Réglages de la porte</summary>
     <label>Charnières <select id="e-ch">${options(['gauche', 'droite', 'haut', 'bas'] as const, el.charnieres, (v) => ({ gauche: 'À gauche', droite: 'À droite', haut: 'En haut (relevable)', bas: 'En bas (abattant)' })[v])}</select></label>
     <label>Pose <select id="e-rec">${options(['applique', 'demi', 'encastree'] as const, el.recouvrement, (v) => RECOUVREMENTS[v])}</select></label>
     <label>Ouverture <select id="e-ouv">${options(OUVERTURES, el.ouverture, (v) => `${v}°`)}</select></label>
     <label title="Vide = selon la hauteur de la porte">Nb charnières <input id="e-nb" type="number" min="1" max="8" value="${el.nbCharnieres ?? ''}" placeholder="auto"></label>
-    <label>Poignée <select id="e-ent">${options(ENTRAXES, el.entraxe, libEntraxe)}</select></label>${commun}`;
-  return `<h3>Tiroir</h3>
+    <label>Poignée <select id="e-ent">${options(ENTRAXES, el.entraxe, libEntraxe)}</select></label>${commun}</details>`;
+  return `<div class="etape-titre">Tiroir</div>${ouvrirBtn}<details class="plus"><summary>Réglages du tiroir</summary>
     <label>Coulisses <select id="e-cou">${options(COULISSES, el.coulisse, (v) => `${v} mm`)}</select></label>
     <label title="Totale : le tiroir sort de toute la longueur des coulisses. Partielle : environ les 3/4.">Sortie <select id="e-sortie">${options(['totale', 'partielle'] as const, el.sortie ?? 'totale', (v) => (v === 'totale' ? 'Totale' : 'Partielle (3/4)'))}</select></label>
     <label>Poignée <select id="e-ent">${options(ENTRAXES, el.entraxe, libEntraxe)}</select></label>
-    <div class="dims">Façade et ${el.pieces.length} pièce(s) de caisson</div>${commun}`;
+    <div class="dims">Façade et ${el.pieces.length} pièce(s) de caisson</div>${commun}</details>`;
 }
 function majElement(id: number, fn: (e: Element) => void) {
   doc = cloneDoc(doc);
@@ -2277,6 +2304,7 @@ function syncDebit() {
   rowId = Math.max(rowId, ...debit.map((r) => r.id)) + 1;
 }
 function openDebit() {
+  marquer('fabrique');
   const before = JSON.stringify(debit);
   syncDebit();
   if (JSON.stringify(debit) !== before) commit();
@@ -2284,7 +2312,7 @@ function openDebit() {
 function closeDebit() { debitEl.classList.remove('open'); }
 
 // ───────── Méthodes de fabrication ─────────
-const fenetreMateriaux: FenetreMateriaux = { get el() { return debitEl; }, doc: () => doc, appliquer(d) { doc = d; commit(); }, fermer: closeDebit };
+const fenetreMateriaux: FenetreMateriaux = { get el() { return debitEl; }, doc: () => doc, fiche: () => syncFromModel(doc, debit, rowId), appliquer(d) { doc = d; commit(); }, fermer: closeDebit };
 const renderMethods = () => renderMaterieux(fenetreMateriaux);
 function openMethods() { renderMethods(); debitEl.classList.add('open'); }
 debitEl.addEventListener('pointerdown', (e) => { if (e.target === debitEl) closeDebit(); });
@@ -2306,30 +2334,24 @@ function planSvg(b: Bin): string {
   return svg + legende;
 }
 function renderDecoupe() {
-  const stock = doc.stock ?? [], extras = doc.extras ?? [], regl = doc.reglages ?? REGLAGES_DEFAUT;
+  const stock = doc.stock ?? [], regl = doc.reglages ?? REGLAGES_DEFAUT;
   const res = planDecoupe(debit, stock, regl);
-  const cChant = coutChant(doc), cExtras = extras.reduce((t, x) => t + x.qte * x.prix, 0);
-  const mats = [...new Set(debit.map((r) => r.matiere).filter(Boolean))];
-  const cell = (t: string, id: number, k: string, v: string | number, cls = '') => `<td><input ${cls ? `class="${cls}"` : ''} data-t="${t}" data-id="${id}" data-k="${k}" value="${esc(String(v))}" ${k === 'matiere' ? 'list="mats"' : ''}></td>`;
+  const aAcheter = res.groupes.reduce((t, g) => t + g.plan.bins.filter((b) => b.achat).length, 0);
   debitEl.innerHTML = `<div class="sheet">
-    <header><h2>Découpe et coût</h2><button class="btn" id="c-print">Imprimer</button><button class="btn primary" id="c-close">Fermer</button></header>
+    <header><h2>Plan de découpe</h2><button class="btn" id="c-print">Imprimer</button><button class="btn primary" id="c-close">Fermer</button></header>
     <div class="scroll multi">
-      <datalist id="mats">${mats.map((m) => `<option value="${esc(m)}">`).join('')}</datalist>
-      <div class="cout"><span>Panneaux à acheter <b>${euro(res.cout)}</b></span><span>Chant <b>${euro(cChant)}</b></span><span>Quincaillerie et divers <b>${euro(cExtras)}</b></span><span>Total <b>${euro(res.cout + cChant + cExtras)}</b></span></div>
-      <h3>Panneaux en stock et à l'achat</h3>
-      <table><thead><tr><th>Matière</th><th>Ép. mm</th><th>Long. mm</th><th>Larg. mm</th><th>En stock</th><th>Prix d'achat €</th><th></th></tr></thead>
-      <tbody>${stock.map((p) => `<tr>${cell('stock', p.id, 'matiere', p.matiere)}${cell('stock', p.id, 'e', p.e, 'num')}${cell('stock', p.id, 'L', p.L, 'num')}${cell('stock', p.id, 'l', p.l, 'num')}${cell('stock', p.id, 'qte', p.qte, 'num')}${cell('stock', p.id, 'prix', p.prix, 'num')}<td>${p.chute ? '<span class="src">chute</span> ' : ''}<button class="btn" data-del="stock" data-id="${p.id}" title="Supprimer">×</button></td></tr>`).join('')}</tbody></table>
-      <p><button class="btn" id="c-addpan">+ Panneau</button> <span class="note" style="opacity:.6">La matière doit être la même que celle des pièces. « En stock » compte tes panneaux et tes chutes, utilisés en premier. Prix à 0 : on n'en rachète pas.</span></p>
+      <div class="row" style="align-items:center;padding:10px 0">
+        <span><b>${aAcheter}</b> panneau${aAcheter > 1 ? 'x' : ''} à acheter</span>
+        <button class="btn" id="c-pans" title="Formats, stock et prix d'achat des panneaux">Panneaux et prix…</button>
+        <button class="btn" id="c-courses" title="Tout ce qu'il faut acheter, et le total">Courses et coût…</button>
+      </div>
+      <details class="reglages"><summary>Réglages de découpe</summary>
       <p><label>Trait de scie mm <input class="num" style="width:70px" data-t="regl" data-id="0" data-k="trait" value="${regl.trait}"></label> &nbsp; <label>Marge de délignage mm <input class="num" style="width:70px" data-t="regl" data-id="0" data-k="marge" value="${regl.marge}"></label> &nbsp; <label title="Une pièce plus grande que tous les panneaux est proposée en plusieurs morceaux à assembler"><input type="checkbox" style="width:auto" id="c-decouper" ${regl.decouper !== false ? 'checked' : ''}> Couper les pièces trop grandes</label></p>
-      <h3>Quincaillerie et divers</h3>
-      <table><thead><tr><th>Désignation</th><th>Qté</th><th>Prix unitaire €</th><th></th></tr></thead>
-      <tbody>${extras.map((x) => `<tr>${cell('extras', x.id, 'nom', x.nom)}${cell('extras', x.id, 'qte', x.qte, 'num')}${cell('extras', x.id, 'prix', x.prix, 'num')}<td><button class="btn" data-del="extras" data-id="${x.id}" title="Supprimer">×</button></td></tr>`).join('')}</tbody></table>
-      <p><button class="btn" id="c-addextra">+ Ligne</button></p>
-      <h3>Plans de coupe</h3>
+      </details>
       ${res.groupes.length ? '' : '<p>Aucune pièce dans la fiche de débit.</p>'}
       ${res.groupes.map((g, gi) => {
         const nom = `${esc(g.matiere || '(sans matière)')} ${g.e} mm`;
-        if (g.sansPanneau) return `<h3>${nom}, ${g.nbPieces} pièce(s)</h3><p class="warn">Aucun panneau de cette matière et de cette épaisseur. <button class="btn" data-addfor="${gi}">Ajouter ce panneau</button></p>`;
+        if (g.sansPanneau) return `<h3>${nom}, ${g.nbPieces} pièce(s)</h3><p class="warn">Aucun panneau de cette matière et de cette épaisseur. <button class="btn" data-addfor="${gi}">Ajouter un format…</button></p>`;
         const achats = g.plan.bins.filter((b) => b.achat).length;
         return `<h3>${nom}, ${g.nbPieces} pièce(s) : ${g.plan.bins.length} panneau(x), dont ${g.plan.bins.length - achats} du stock et ${achats} à acheter (${g.manques.length ? `${euro(g.plan.cout)} + prix à indiquer` : euro(g.plan.cout)}), chute ${(g.plan.chute * 100).toFixed(0)} %</h3>
           ${g.decoupes.map((d) => `<p class="propose">Proposition : <b>${esc(d.nom)}</b> (${d.L} × ${d.l} mm${d.qte > 1 ? `, ×${d.qte}` : ''}) ne rentre dans aucun panneau. Elle est coupée en <b>${d.n} morceaux de ${Math.round(d.partL)} × ${Math.round(d.partl)} mm</b>, à assembler ensuite (tourillons, lamelles ou fausse languette). Pour l'éviter, ajoute un panneau plus grand ou décoche « Couper les pièces trop grandes ».</p>`).join('')}
@@ -2341,42 +2363,28 @@ function renderDecoupe() {
     </div>
     <footer><span class="note">Découpe en coupes droites de bord à bord, fil respecté (le fil d'un panneau suit sa longueur). C'est un calcul approché : bon, pas garanti optimal. Les cotes viennent de la fiche de débit.</span></footer>
   </div>`;
-  const edit = (fn: () => void) => { doc = cloneDoc(doc); doc.stock ??= []; doc.extras ??= []; doc.reglages ??= { ...REGLAGES_DEFAUT }; fn(); commit(); renderDecoupe(); };
-  const addPan = (matiere: string, e: number) => edit(() => { doc.stock!.push({ id: doc.next++, matiere, e, L: 2800, l: 2070, qte: 0, prix: 0 }); });
+  const edit = (fn: () => void) => { doc = cloneDoc(doc); doc.reglages ??= { ...REGLAGES_DEFAUT }; fn(); commit(); renderDecoupe(); };
   document.getElementById('c-close')!.onclick = closeDebit;
   document.getElementById('c-print')!.onclick = () => window.print();
-  document.getElementById('c-addpan')!.onclick = () => { const g = res.groupes.find((x) => x.sansPanneau); addPan(g?.matiere ?? '', g?.e ?? 18); };
-  document.getElementById('c-addextra')!.onclick = () => edit(() => { doc.extras!.push({ id: doc.next++, nom: '', qte: 1, prix: 0 }); });
+  document.getElementById('c-pans')!.onclick = openMethods;
+  document.getElementById('c-courses')!.onclick = () => ouvrirCourses(feuille);
   (document.getElementById('c-decouper') as HTMLInputElement).onchange = (e) => edit(() => { doc.reglages!.decouper = (e.target as HTMLInputElement).checked; });
   debitEl.querySelectorAll<HTMLElement>('[data-fait]').forEach((el) => {
     el.onclick = () => {
       const g = res.groupes[Number(el.dataset.fait)]!;
-      edit(() => { doc.stock = appliquerDecoupe(doc.stock!, g.plan, g.matiere, g.e, () => doc.next++); });
+      edit(() => { doc.stock = appliquerDecoupe(doc.stock ?? [], g.plan, g.matiere, g.e, () => doc.next++); });
     };
   });
-  debitEl.querySelectorAll<HTMLElement>('[data-addfor]').forEach((el) => { el.onclick = () => { const g = res.groupes[Number(el.dataset.addfor)]!; addPan(g.matiere, g.e); }; });
+  debitEl.querySelectorAll<HTMLElement>('[data-addfor]').forEach((el) => { el.onclick = openMethods; });
   debitEl.querySelectorAll<HTMLInputElement>('input[data-t]').forEach((el) => {
     el.onchange = () => edit(() => {
-      const { t, k } = el.dataset, id = Number(el.dataset.id);
       const v = Math.max(0, num(el.value));
-      if (t === 'regl') { if (k === 'trait') doc.reglages!.trait = v; else doc.reglages!.marge = v; return; }
-      if (t === 'stock') {
-        const r = doc.stock!.find((x) => x.id === id); if (!r) return;
-        if (k === 'matiere') r.matiere = el.value; else if (k === 'e') r.e = v; else if (k === 'L') r.L = v; else if (k === 'l') r.l = v; else if (k === 'qte') r.qte = Math.floor(v); else r.prix = v;
-      } else {
-        const r = doc.extras!.find((x) => x.id === id); if (!r) return;
-        if (k === 'nom') r.nom = el.value; else if (k === 'qte') r.qte = v; else r.prix = v;
-      }
-    });
-  });
-  debitEl.querySelectorAll<HTMLElement>('button[data-del]').forEach((el) => {
-    el.onclick = () => edit(() => {
-      const id = Number(el.dataset.id);
-      if (el.dataset.del === 'stock') doc.stock = doc.stock!.filter((x) => x.id !== id); else doc.extras = doc.extras!.filter((x) => x.id !== id);
+      if (el.dataset.k === 'trait') doc.reglages!.trait = v; else doc.reglages!.marge = v;
     });
   });
 }
 function openDecoupe() {
+  marquer('fabrique');
   const before = JSON.stringify(debit);
   syncDebit();
   if (JSON.stringify(debit) !== before) commit();
@@ -2391,6 +2399,7 @@ let caissonFondTiroirMat = '';   // vide : comme le fond
 let caissonFacadeMat = '';       // vide : comme les panneaux (façades de portes et de tiroirs)
 let caissonCaisseTirMat = '';    // vide : comme les panneaux (côtés, devants et arrières de tiroir)
 let caissonEdit: number | null = null;
+let champMat = 'k-mat';   // champ de matériau que les pastilles remplissent (le dernier touché)
 // Matériau d'un nom : celui du projet, sinon un matériau courant (panneau et couleur du préréglage), sinon créé d'après le nom.
 function methodeNommee(nom: string, d: Doc = doc): number {
   const p = PRESETS_MAT.find((x) => x.nom.toLowerCase() === nom.trim().toLowerCase());
@@ -2399,47 +2408,50 @@ function methodeNommee(nom: string, d: Doc = doc): number {
   }
   return materiauNomme(d, nom);
 }
-const CAISSON_CHAMPS: [keyof CaissonParams, string, string][] = [
-  ['L', 'Largeur', 'mm'], ['H', 'Hauteur', 'mm'], ['P', 'Profondeur', 'mm'], ['e', 'Épaisseur des panneaux', 'mm'],
-  ['colonnes', 'Colonnes', ''], ['etageres', 'Étagères par colonne', ''], ['tiroirs', 'Tiroirs par colonne « tiroirs »', ''],
-  ['hTiroir', 'Hauteur d\'une façade de tiroir', 'mm'], ['jeu', 'Jeu autour des façades', 'mm'],
-  ['fond', 'Fond en applique, épaisseur (0 = sans)', 'mm'], ['plinthe', 'Plinthe, hauteur (0 = sans)', 'mm'], ['retrait', 'Retrait des étagères', 'mm'],
-];
 const TYPES_COL: [TypeColonne, string][] = [['etageres', 'Étagères'], ['penderie', 'Penderie'], ['tiroirs', 'Tiroirs'], ['penderie_tiroirs', 'Penderie sur tiroirs']];
 function renderCaisson() {
   const n = Math.max(1, Math.min(12, Math.round(caissonP.colonnes)));
   caissonP.types = Array.from({ length: n }, (_, i) => caissonP.types[i] ?? 'etageres');
   const err = verifier(caissonP);
   const c = err ? null : genererCaisson(caissonP);
-  debitEl.innerHTML = `<div class="sheet" style="width:min(560px,100%)">
-    <header><h2>${caissonEdit ? 'Modifier le meuble' : 'Nouveau meuble'}</h2></header>
-    <div class="scroll">
-      ${caissonEdit ? '' : `<p>Pars d'un modèle, puis ajuste les cotes :</p><div class="row">${MODELES.map(({ nom: n }, i) => `<button class="btn" data-modele="${i}">${n}</button>`).join('')}</div>`}
-      <div class="form">
-      ${CAISSON_CHAMPS.map(([k, label, u]) => `<label for="k-${k}">${label}${u ? ` (${u})` : ''}</label><input class="num" id="k-${k}" data-c="${k}" value="${caissonP[k]}">`).join('')}
-      ${(() => { const v = videsColonnes(caissonP); return caissonP.types.map((t, i) => `<label for="k-t${i}">Colonne ${i + 1}</label><span class="row" style="flex-wrap:nowrap"><select id="k-t${i}" data-col="${i}" style="flex:1">${TYPES_COL.map(([val, l]) => `<option value="${val}" ${val === t ? 'selected' : ''}>${l}</option>`).join('')}</select>${v.length > 1 ? `<input class="num" style="width:70px" data-larg="${i}" value="${Math.round(v[i]!)}" title="Largeur intérieure en mm ; la colonne voisine compense">` : ''}</span>`).join(''); })()}
-      <label for="k-portes">Portes en applique</label><input type="checkbox" id="k-portes" style="width:auto;justify-self:start" ${caissonP.portes ? 'checked' : ''}>
-      <label for="k-dessus" title="Sous un plan de travail, deux traverses suffisent : une plaque de moins.">Dessus</label><span class="row" style="flex-wrap:nowrap"><select id="k-dessus" style="flex:1"><option value="plein" ${caissonP.dessus === 'traverses' ? '' : 'selected'}>Panneau plein</option><option value="traverses" ${caissonP.dessus === 'traverses' ? 'selected' : ''}>Deux traverses</option></select>${caissonP.dessus === 'traverses' ? `<input class="num" data-c="largeurTraverse" value="${caissonP.largeurTraverse ?? 100}" title="Largeur des traverses (mm)" style="width:70px">` : ''}</span>
-      ${caissonP.plinthe > 0 ? `<label for="k-entailles" title="Les côtés sont échancrés au pied et une seule plinthe, en retrait, court sur toute la largeur.">Côtés entaillés, plinthe unique</label><span class="row" style="flex-wrap:nowrap"><input type="checkbox" id="k-entailles" style="width:auto" ${caissonP.entailles ? 'checked' : ''}>${caissonP.entailles ? `<input class="num" data-c="retraitPlinthe" value="${caissonP.retraitPlinthe ?? caissonP.retrait}" title="Retrait de la plinthe en façade (mm)" style="width:70px">` : ''}</span>` : ''}
-      ${caissonP.types.some((t) => t === 'tiroirs' || t === 'penderie_tiroirs') ? `<label for="k-hts" title="Hauteur de chaque façade de bas en haut, jeu compris. Laisse 100 mm au-dessus, ou fais la somme de la hauteur moins la plinthe pour remplir la colonne.">Hauteurs de tiroirs (mm)</label><input id="k-hts" value="${(caissonP.hTiroirs ?? []).join(', ')}" placeholder="ex. 310, 310, 160 (vide : réguliers)"><label for="k-ept" title="8 mm par défaut ; 5 pour du contreplaqué de 5.">Fond de tiroir, épaisseur (mm)</label><input class="num" id="k-ept" data-c="epFondTiroir" value="${caissonP.epFondTiroir ?? 8}">` : ''}
-      ${caissonP.colonnes > 1 && caissonP.fond > 0 ? `<label for="k-fpc" title="Un fond par colonne au lieu d'un seul : il se range mieux dans un panneau.">Un fond par colonne</label><input type="checkbox" id="k-fpc" style="width:auto;justify-self:start" ${caissonP.fondParColonne ? 'checked' : ''}>` : ''}
-      ${caissonP.colonnes > 1 ? `<label for="k-egales" title="Les colonnes sont calculées pour que toutes les façades aient la même largeur (sans largeurs choisies à la main).">Façades de même largeur</label><input type="checkbox" id="k-egales" style="width:auto;justify-self:start" ${caissonP.facadesEgales ? 'checked' : ''}>` : ''}
-      ${caissonP.colonnes > 1 ? `<label for="k-pleins" title="Les montants vont du sol au dessus ; dessus, dessous et plinthe sont coupés par colonne. Utile quand le meuble est plus long qu'un panneau.">Montants pleine hauteur</label><input type="checkbox" id="k-pleins" style="width:auto;justify-self:start" ${caissonP.montantsPleins ? 'checked' : ''}>` : ''}
-      <label for="k-mat">Matière des panneaux</label><input id="k-mat" list="k-mats" value="${esc(caissonMat)}">
-      ${pucesForm('k-mat', caissonMat)}
-      <label for="k-fondmat">Matière du fond</label><input id="k-fondmat" list="k-mats" value="${esc(caissonFondMat)}">
-      ${pucesForm('k-fondmat', caissonFondMat)}
-      <label for="k-facade" title="Vide : la même que les panneaux">Façades (portes et tiroirs)</label><input id="k-facade" list="k-mats" value="${esc(caissonFacadeMat)}" placeholder="comme les panneaux">
-      ${pucesForm('k-facade', caissonFacadeMat)}
-      ${caissonP.types.some((t) => t === 'tiroirs' || t === 'penderie_tiroirs') ? `<label for="k-caissetir" title="Côtés, devants et arrières. Vide : la même que les panneaux">Caisses de tiroir</label><input id="k-caissetir" list="k-mats" value="${esc(caissonCaisseTirMat)}" placeholder="comme les panneaux">${pucesForm('k-caissetir', caissonCaisseTirMat)}` : ''}
-      ${caissonP.types.some((t) => t === 'tiroirs' || t === 'penderie_tiroirs') ? `<label for="k-fondtir" title="Vide : la même que le fond">Fonds de tiroir</label><input id="k-fondtir" list="k-mats" value="${esc(caissonFondTiroirMat)}" placeholder="comme le fond">${pucesForm('k-fondtir', caissonFondTiroirMat)}` : ''}
-      <datalist id="k-mats">${(doc.methods ?? []).map((m) => `<option value="${esc(m.nom)}">`).join('')}<option value="Mélaminé blanc 18"><option value="Contreplaqué 18"><option value="HDF 3"></datalist>
+  const tiroirs = caissonP.types.some((t) => t === 'tiroirs' || t === 'penderie_tiroirs');
+  const champ = (k: keyof CaissonParams, label: string, u = '', titre = '') => `<label class="f" ${titre ? `title="${esc(titre)}"` : ''}><span>${label}${u ? ` (${u})` : ''}</span><input class="num" id="k-${k}" data-c="${k}" value="${caissonP[k]}"></label>`;
+  const matiere = (id: string, label: string, valeur: string, titre = '', vide = '') => `<label class="f" ${titre ? `title="${esc(titre)}"` : ''}><span>${label}</span><input id="${id}" list="k-mats" value="${esc(valeur)}" ${vide ? `placeholder="${vide}"` : ''}></label>`;
+  const valeurs: Record<string, [string, string]> = { 'k-mat': ['les panneaux', caissonMat], 'k-facade': ['les façades', caissonFacadeMat], 'k-fondmat': ['le fond', caissonFondMat], 'k-caissetir': ['les caisses de tiroir', caissonCaisseTirMat], 'k-fondtir': ['les fonds de tiroir', caissonFondTiroirMat] };
+  if (!valeurs[champMat] || (!tiroirs && (champMat === 'k-caissetir' || champMat === 'k-fondtir'))) champMat = 'k-mat';
+  const pastilles = `<div class="note">Clique un matériau pour <b id="k-cible">${valeurs[champMat]![0]}</b> :</div>${pucesForm(champMat, valeurs[champMat]![1])}`;
+  const nbPan = c ? c.panneaux.filter((p) => p.piece).length : 0;
+  panel.innerHTML = `<div class="meuble">
+    <div class="meuble-tete"><b>${caissonEdit ? 'Modifier le meuble' : 'Nouveau meuble'}</b><span class="note">L'aperçu s'affiche dans la vue.</span></div>
+    ${caissonEdit ? '<p class="warn">Le meuble est recréé : les retouches faites à la main sur ses pièces sont perdues.</p>' : `<div class="modeles">${MODELES.map(({ nom: n }, i) => `<button class="puce" data-modele="${i}">${n}</button>`).join('')}</div>`}
+    <div class="grp"><div class="etape-titre">Dimensions</div><div class="f3">${champ('L', 'Largeur', 'mm')}${champ('H', 'Hauteur', 'mm')}${champ('P', 'Profondeur', 'mm')}</div></div>
+    <div class="grp"><div class="etape-titre">Colonnes</div>
+      ${champ('colonnes', 'Nombre de colonnes')}
+      ${(() => { const v = videsColonnes(caissonP); return caissonP.types.map((t, i) => `<div class="colonne"><span>${i + 1}</span><select id="k-t${i}" data-col="${i}" aria-label="Contenu de la colonne ${i + 1}">${TYPES_COL.map(([val, l]) => `<option value="${val}" ${val === t ? 'selected' : ''}>${l}</option>`).join('')}</select>${v.length > 1 ? `<input class="num" data-larg="${i}" value="${Math.round(v[i]!)}" title="Largeur intérieure en mm ; la colonne voisine compense" aria-label="Largeur de la colonne ${i + 1}">` : ''}</div>`).join(''); })()}
+      <div class="f3">${champ('etageres', 'Étagères')}${tiroirs ? champ('tiroirs', 'Tiroirs') : ''}${tiroirs ? champ('hTiroir', 'Haut. façade', 'mm') : ''}</div>
+      <label class="coche"><input type="checkbox" id="k-portes" ${caissonP.portes ? 'checked' : ''}> Portes en applique</label>
     </div>
-    <p class="${err ? 'warn' : ''}">${err ?? `${c!.panneaux.filter((p) => p.piece).length} panneaux${(() => { const np = c!.panneaux.filter((p) => p.role?.type === 'porte').length, nt = new Set(c!.panneaux.flatMap((p) => (p.role?.type === 'tiroir' ? [p.role.cle] : []))).size; return np + nt ? `, ${np} porte(s) et ${nt} tiroir(s) (charnières, coulisses et poignées calculées)` : ''; })()}${c!.quincaillerie.length ? `, et ${esc(c!.quincaillerie.map((x) => `${x.qte} ${x.nom}`).join(', '))}` : ''}. Toute la quincaillerie va dans « Découpe et coût », sans prix : indique-les là-bas.`}</p>
-    ${caissonEdit ? '<p class="warn">Le caisson est recréé : les retouches faites à la main sur ses pièces sont perdues.</p>' : ''}</div>
-    <footer style="justify-content:flex-end"><button class="btn" id="k-cancel">Annuler</button><button class="btn primary" id="k-ok" ${err ? 'disabled' : ''}>${caissonEdit ? 'Appliquer' : 'Créer'}</button></footer>
+    <div class="grp"><div class="etape-titre">Matériaux</div>
+      ${matiere('k-mat', 'Panneaux', caissonMat)}
+      ${matiere('k-facade', 'Façades (portes et tiroirs)', caissonFacadeMat, 'Vide : le même que les panneaux', 'comme les panneaux')}
+      ${matiere('k-fondmat', 'Fond', caissonFondMat)}
+      ${pastilles}
+    </div>
+    <details class="plus"><summary>Options</summary>
+      <div class="f3">${champ('e', 'Épaisseur', 'mm')}${champ('plinthe', 'Plinthe', 'mm', 'Hauteur de plinthe (0 : posé au sol)')}${champ('fond', 'Fond', 'mm', 'Épaisseur du fond en applique (0 : sans fond)')}</div>
+      <div class="f3">${champ('jeu', 'Jeu', 'mm', 'Jeu autour des façades')}${champ('retrait', 'Retrait', 'mm', 'Retrait des étagères en façade')}</div>
+      <label class="f" title="Sous un plan de travail, deux traverses suffisent : une plaque de moins."><span>Dessus</span><span class="row" style="flex-wrap:nowrap"><select id="k-dessus" style="flex:1"><option value="plein" ${caissonP.dessus === 'traverses' ? '' : 'selected'}>Panneau plein</option><option value="traverses" ${caissonP.dessus === 'traverses' ? 'selected' : ''}>Deux traverses</option></select>${caissonP.dessus === 'traverses' ? `<input class="num" data-c="largeurTraverse" value="${caissonP.largeurTraverse ?? 100}" title="Largeur des traverses (mm)" style="width:70px">` : ''}</span></label>
+      ${caissonP.plinthe > 0 ? `<label class="coche" title="Les côtés sont échancrés au pied et une seule plinthe, en retrait, court sur toute la largeur."><input type="checkbox" id="k-entailles" ${caissonP.entailles ? 'checked' : ''}> Côtés entaillés, plinthe unique${caissonP.entailles ? ` <input class="num" data-c="retraitPlinthe" value="${caissonP.retraitPlinthe ?? caissonP.retrait}" title="Retrait de la plinthe en façade (mm)" style="width:70px">` : ''}</label>` : ''}
+      ${caissonP.colonnes > 1 ? `<label class="coche" title="Les colonnes sont calculées pour que toutes les façades aient la même largeur (sans largeurs choisies à la main)."><input type="checkbox" id="k-egales" ${caissonP.facadesEgales ? 'checked' : ''}> Façades de même largeur</label>` : ''}
+      ${caissonP.colonnes > 1 && caissonP.fond > 0 ? `<label class="coche" title="Un fond par colonne au lieu d'un seul : il se range mieux dans un panneau."><input type="checkbox" id="k-fpc" ${caissonP.fondParColonne ? 'checked' : ''}> Un fond par colonne</label>` : ''}
+      ${caissonP.colonnes > 1 ? `<label class="coche" title="Les montants vont du sol au dessus ; dessus, dessous et plinthe sont coupés par colonne. Utile quand le meuble est plus long qu'un panneau."><input type="checkbox" id="k-pleins" ${caissonP.montantsPleins ? 'checked' : ''}> Montants pleine hauteur</label>` : ''}
+      ${tiroirs ? `<label class="f" title="Hauteur de chaque façade de bas en haut, jeu compris. Laisse 100 mm au-dessus, ou fais la somme de la hauteur moins la plinthe pour remplir la colonne."><span>Hauteurs de tiroirs (mm)</span><input id="k-hts" value="${(caissonP.hTiroirs ?? []).join(', ')}" placeholder="ex. 310, 310, 160 (vide : réguliers)"></label>${champ('epFondTiroir', 'Fond de tiroir', 'mm', '8 mm par défaut ; 5 pour du contreplaqué de 5')}${matiere('k-caissetir', 'Caisses de tiroir', caissonCaisseTirMat, 'Côtés, devants et arrières. Vide : le même que les panneaux', 'comme les panneaux')}${matiere('k-fondtir', 'Fonds de tiroir', caissonFondTiroirMat, 'Vide : le même que le fond', 'comme le fond')}` : ''}
+    </details>
+    <datalist id="k-mats">${(doc.methods ?? []).map((m) => `<option value="${esc(m.nom)}">`).join('')}<option value="Mélaminé blanc 18"><option value="Contreplaqué 18"><option value="HDF 3"></datalist>
+    <p class="${err ? 'warn' : 'note'}">${err ?? `${nbPan} panneaux${(() => { const np = c!.panneaux.filter((p) => p.role?.type === 'porte').length, nt = new Set(c!.panneaux.flatMap((p) => (p.role?.type === 'tiroir' ? [p.role.cle] : []))).size; return np + nt ? `, ${np} porte(s) et ${nt} tiroir(s)` : ''; })()}${c!.quincaillerie.length ? `, et ${esc(c!.quincaillerie.map((x) => `${x.qte} ${x.nom}`).join(', '))}` : ''}. La quincaillerie se chiffre dans « Courses et coût ».`}</p>
+    <div class="meuble-pied"><button class="btn" id="k-cancel">Annuler</button><button class="btn primary" id="k-ok" ${err ? 'disabled' : ''}>${caissonEdit ? 'Appliquer' : 'Créer le meuble'}</button></div>
   </div>`;
-  debitEl.querySelectorAll<HTMLInputElement>('input[data-c]').forEach((el) => {
+  panel.querySelectorAll<HTMLInputElement>('input[data-c]').forEach((el) => {
     el.onchange = () => {
       const k = el.dataset.c as keyof CaissonParams;
       caissonP = { ...caissonP, [k]: Math.max(0, num(el.value)) };
@@ -2447,10 +2459,10 @@ function renderCaisson() {
       renderCaisson();
     };
   });
-  debitEl.querySelectorAll<HTMLInputElement>('input[data-larg]').forEach((el) => {
+  panel.querySelectorAll<HTMLInputElement>('input[data-larg]').forEach((el) => {
     el.onchange = () => { caissonP = fixerLargeur(caissonP, Number(el.dataset.larg), Math.max(0, num(el.value))); renderCaisson(); };
   });
-  debitEl.querySelectorAll<HTMLSelectElement>('select[data-col]').forEach((el) => {
+  panel.querySelectorAll<HTMLSelectElement>('select[data-col]').forEach((el) => {
     el.onchange = () => { caissonP.types[Number(el.dataset.col)] = el.value as TypeColonne; renderCaisson(); };
   });
   (document.getElementById('k-portes') as HTMLInputElement).onchange = (e) => { caissonP.portes = (e.target as HTMLInputElement).checked; renderCaisson(); };
@@ -2473,13 +2485,22 @@ function renderCaisson() {
   (document.getElementById('k-fondmat') as HTMLInputElement).onchange = (e) => { caissonFondMat = (e.target as HTMLInputElement).value; };
   const ft = document.getElementById('k-fondtir') as HTMLInputElement | null;
   if (ft) ft.onchange = () => { caissonFondTiroirMat = ft.value; };
-  debitEl.querySelectorAll<HTMLButtonElement>('[data-modele]').forEach((b) => {
-    b.onclick = () => { const m = MODELES[Number(b.dataset.modele)]!.params; caissonP = { ...CAISSON_DEFAUT, ...m, types: [...(m.types ?? CAISSON_DEFAUT.types)] }; renderCaisson(); };
+  panel.querySelectorAll<HTMLButtonElement>('[data-modele]').forEach((b) => {
+    b.onclick = () => { const m = MODELES[Number(b.dataset.modele)]!.params; caissonP = { ...CAISSON_DEFAUT, ...m, types: [...(m.types ?? CAISSON_DEFAUT.types)] }; renderCaisson(); cadrerApercu(); };
   });
-  debitEl.querySelectorAll<HTMLButtonElement>('[data-kmat]').forEach((b) => {
+  panel.querySelectorAll<HTMLButtonElement>('[data-kmat]').forEach((b) => {
     b.onclick = () => { if (b.dataset.kmat === 'k-mat') caissonMat = b.dataset.nom!; else if (b.dataset.kmat === 'k-fondtir') caissonFondTiroirMat = b.dataset.nom!; else if (b.dataset.kmat === 'k-facade') caissonFacadeMat = b.dataset.nom!; else if (b.dataset.kmat === 'k-caissetir') caissonCaisseTirMat = b.dataset.nom!; else caissonFondMat = b.dataset.nom!; renderCaisson(); };
   });
-  document.getElementById('k-cancel')!.onclick = closeDebit;
+  panel.querySelectorAll<HTMLInputElement>('input[list="k-mats"]').forEach((el) => {
+    el.onfocus = () => {
+      champMat = el.id;
+      const [nom, val] = valeurs[el.id]!;
+      document.getElementById('k-cible')!.textContent = nom;
+      panel.querySelectorAll<HTMLButtonElement>('[data-kmat]').forEach((b) => { b.dataset.kmat = el.id; b.classList.toggle('on', b.dataset.nom!.toLowerCase() === val.trim().toLowerCase()); });
+    };
+  });
+  document.getElementById('k-cancel')!.onclick = fermerFormMeuble;
+  majApercu();
   document.getElementById('k-ok')!.onclick = creerCaisson;
 }
 const minLocal = (c: ReturnType<typeof genererCaisson>): V3 =>
@@ -2552,8 +2573,9 @@ function creerCaisson() {
   if (caissonCaisseTirMat.trim() && caissonP.types.some((t) => t === 'tiroirs' || t === 'penderie_tiroirs')) rec.caisseTiroir = caissonCaisseTirMat.trim(); else delete rec.caisseTiroir;
   const ids = ecrireCaisson(doc, rec, origine);
   selected.clear(); for (const i of ids) selected.add(i);
-  caissonEdit = null;
-  closeDebit(); commit(); setTool('select'); vue('iso'); fitAll();
+  caissonEdit = null; caissonOuvert = false;
+  document.documentElement.style.removeProperty('--side'); resize(); clearGroup(apercuGroup);
+  commit(); setTool('select'); vue('iso'); fitAll();
 }
 // Pastilles de couleur sous un champ de matière du formulaire : matériaux du projet, puis matériaux courants.
 function pucesForm(champ: string, actuel: string): string {
@@ -2573,7 +2595,57 @@ function openCaisson(id: number | null) {
     caissonFacadeMat = rec.facade ?? '';
     caissonCaisseTirMat = rec.caisseTiroir ?? '';
   }
-  renderCaisson(); debitEl.classList.add('open');
+  closeDebit();
+  caissonOuvert = true;
+  document.documentElement.style.setProperty('--side', 'min(400px, 45vw)');
+  resize();
+  rebuild();                 // les pièces du meuble modifié s'effacent : l'aperçu les remplace
+  renderCaisson();
+  cadrerApercu();
+}
+// Le formulaire vit dans le panneau de droite : la vue reste libre, et le meuble s'y dessine en direct (aperçu translucide).
+let caissonOuvert = false;
+const apercuGroup = new THREE.Group();
+scene.add(apercuGroup);
+function fermerFormMeuble() {
+  caissonOuvert = false; caissonEdit = null;
+  document.documentElement.style.removeProperty('--side');
+  resize();
+  clearGroup(apercuGroup);
+  rebuild(); refreshPanel();
+}
+const couleurMateriau = (nom: string) => (doc.methods ?? []).find((m) => m.nom.toLowerCase() === nom.trim().toLowerCase())?.couleur ?? PRESETS_MAT.find((m) => m.nom.toLowerCase() === nom.trim().toLowerCase())?.couleur ?? couleurParNom(nom);
+// Origine du meuble à l'écran : sa place actuelle s'il existe déjà, sinon à droite de ce qui est dessiné.
+function origineApercu(): V3 {
+  const rec = caissonEdit ? (doc.caissons ?? []).find((x) => x.id === caissonEdit) : undefined;
+  const o = rec ? origineCaisson(doc, rec) : null;
+  if (o) return o;
+  const bb = bboxOf(doc.solids.filter((x) => !caissonEdit || x.meta.caisson !== caissonEdit));
+  return [bb ? bb.max[0] + 0.3 : 0, 0, 0];
+}
+function majApercu() {
+  clearGroup(apercuGroup);
+  if (!caissonOuvert) return;
+  let c: ReturnType<typeof genererCaisson>;
+  try { c = genererCaisson(caissonP); } catch { return; }
+  const o = origineApercu();
+  const corps = couleurMateriau(caissonMat || 'Mélaminé blanc 18'), fond = couleurMateriau(caissonFondMat), facade = couleurMateriau(caissonFacadeMat || caissonMat || 'Mélaminé blanc 18');
+  for (const p of c.panneaux) {
+    const m = maillePanneau(p, o);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(m.v, 3));
+    g.setIndex(m.t); g.computeVertexNormals();
+    const couleur = p.role?.type === 'porte' || (p.role?.type === 'tiroir' && p.role.facade) ? facade : p.nom === 'Fond' ? fond : corps;
+    const mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: couleur, transparent: true, opacity: 0.92, flatShading: true, side: THREE.DoubleSide }));
+    mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(g, 25), lineMat));
+    apercuGroup.add(mesh);
+  }
+}
+function cadrerApercu() {
+  let c: ReturnType<typeof genererCaisson>;
+  try { c = genererCaisson(caissonP); } catch { return; }
+  const o = origineApercu(), lo = add(minLocal(c), o), hi = add(maxLocal(c), o);
+  fitBox(lo, hi);
 }
 
 // ───────── Guide des premiers pas ─────────
@@ -2586,22 +2658,24 @@ function marquer(k: string) {
   try { localStorage.setItem('workshop3d.guide', JSON.stringify(faits)); } catch { /* ignoré */ }
 }
 function openGuide() {
-  const etapes: { titre: string; texte: string; fait: boolean; action?: [string, () => void] }[] = [
-    { titre: 'Crée ton meuble', texte: 'Choisis un modèle (bibliothèque, dressing, commode…), puis règle largeur, hauteur, profondeur, colonnes, tiroirs et portes.', fait: !!doc.caissons?.length, action: ['Nouveau meuble', () => openCaisson(null)] },
-    { titre: 'Regarde-le sous tous les angles', texte: 'Molette enfoncée et glisser : tourner. Maj + molette : décaler. Molette : zoomer. Touches 1, 2, 3 et 0 : face, dessus, côté, 3D. Touche K : les cotes.', fait: !!faits.cotes, action: ['Afficher les cotes', () => { cotesOn = true; marquer('cotes'); vue('iso'); fitAll(); drawCotes(); refreshPanel(); closeDebit(); }] },
-    { titre: 'Ajuste une pièce', texte: 'Clique une pièce : à droite, change sa matière, ses chants (bords plaqués) ou le sens du fil. « Modifier le meuble » change ses cotes.', fait: !!faits.selection },
-    { titre: 'Lis la fiche de débit', texte: 'La liste des pièces à couper, avec leurs cotes, quantités et chants. Elle se met à jour toute seule.', fait: debit.length > 0, action: ['Fiche de débit', () => openDebit()] },
-    { titre: 'Optimise la découpe et chiffre', texte: 'Indique tes panneaux : format, prix d\'achat, ou combien tu en as déjà. L\'app place les pièces au mieux et calcule le coût, quincaillerie comprise.', fait: (doc.stock ?? []).some((p) => p.prix > 0 || p.qte > 0), action: ['Découpe et coût', () => openDecoupe()] },
-    { titre: 'Enregistre ton projet', texte: 'Cmd+S crée un fichier .workshop que tu pourras rouvrir. Les plans et la fiche s\'impriment depuis leurs fenêtres.', fait: !!filePath, action: ['Enregistrer', () => { closeDebit(); void fileSave(); }] },
+  // Les quatre étapes de la barre du haut, avec leur avancement ; une action pour y aller.
+  const etapes: { id: Etape; titre: string; texte: string; action: [string, () => void] }[] = [
+    { id: 'concevoir', titre: 'Concevoir', texte: 'Crée un meuble à partir d\'un modèle (bibliothèque, dressing, commode, buffet…), puis règle ses matériaux et ses panneaux.', action: ['Nouveau meuble', () => openCaisson(null)] },
+    { id: 'controler', titre: 'Contrôler', texte: 'Vérifie que rien ne se traverse, que les tablettes tiennent, que les portes s\'ouvrent, y compris sous un plafond en pente.', action: ['Vérifier', () => { marquer('verif'); ouvrirVerification(feuille); }] },
+    { id: 'fabriquer', titre: 'Fabriquer', texte: 'La fiche de débit, le plan de découpe, les plans à imprimer et les perçages : de quoi couper et assembler.', action: ['Fiche de débit', () => openDebit()] },
+    { id: 'acheter', titre: 'Acheter', texte: 'Les prix des panneaux, les quantités, le total et la liste de courses, quincaillerie comprise.', action: ['Courses et coût', () => { marquer('courses'); ouvrirCourses(feuille); }] },
   ];
-  const n = etapes.filter((e) => e.fait).length;
-  debitEl.innerHTML = `<div class="sheet" style="width:min(640px,100%)">
-    <header><h2>Premiers pas (${n}/${etapes.length})</h2><button class="btn primary" id="g-close">Fermer</button></header>
-    <div class="scroll"><ol class="guide">${etapes.map((e, i) => `<li class="${e.fait ? 'fait' : ''}"><div><b>${e.fait ? '✓ ' : ''}${e.titre}</b><p>${e.texte}</p></div>${e.action ? `<button class="btn ${e.fait ? '' : 'primary'}" data-g="${i}">${e.action[0]}</button>` : ''}</li>`).join('')}</ol>
-    <p class="note">Pour dessiner librement (lignes, rectangles, pousser/tirer comme dans SketchUp), active le « Mode expert » en bas de la colonne d'outils. Ce guide revient avec la touche ? ou le bouton Guide.</p></div>
+  const outils = TOOLS.map((t) => `<tr><td>${t.label}${SIMPLES.includes(t.id) ? '' : ' <span class="note">(mode expert)</span>'}</td><td><kbd>${t.key}</kbd></td></tr>`).join('');
+  const touches = [['1 · 2 · 3 · 0', 'Vues : face, dessus, côté, 3D'], ['K', 'Cotes hors tout'], ['Maj + Z', 'Tout cadrer'], ['D', 'Fiche de débit'], ['Cmd + Z / Maj + Z', 'Annuler, refaire'], ['Cmd + C · X · V · D', 'Copier, couper, coller, dupliquer'], ['Cmd + A', 'Tout sélectionner'], ['Maj + H · Maj + Option + H', 'Masquer, tout afficher'], ['Échap', 'Annuler le geste en cours'], ['Cmd + S · O · N', 'Enregistrer, ouvrir, nouveau projet'], ['?', 'Cette aide']]
+    .map(([k, t]) => `<tr><td>${t}</td><td><kbd>${k}</kbd></td></tr>`).join('');
+  debitEl.innerHTML = `<div class="sheet" style="width:min(720px,100%)">
+    <header><h2>Premiers pas et raccourcis</h2><button class="btn primary" id="g-close">Fermer</button></header>
+    <div class="scroll"><ol class="guide">${etapes.map((e, i) => `<li class="${etapeFaite(e.id) ? 'fait' : ''}"><div><b>${etapeFaite(e.id) ? '✓ ' : `${i + 1}. `}${e.titre}</b><p>${e.texte}</p></div><button class="btn ${etapeFaite(e.id) ? '' : 'primary'}" data-g="${i}">${e.action[0]}</button></li>`).join('')}</ol>
+    <p class="note" style="padding:0 12px">Tourner : molette enfoncée et glisser. Décaler : Maj + molette. Zoomer : molette. Pour dessiner librement (lignes, rectangles, pousser/tirer), active le « Mode expert » en bas de la colonne d'outils.</p>
+    <div class="deux-col"><div><h3>Outils</h3><table class="raccourcis"><tbody>${outils}</tbody></table></div><div><h3>Clavier</h3><table class="raccourcis"><tbody>${touches}</tbody></table></div></div></div>
   </div>`;
   document.getElementById('g-close')!.onclick = closeDebit;
-  debitEl.querySelectorAll<HTMLButtonElement>('[data-g]').forEach((b) => { b.onclick = () => etapes[Number(b.dataset.g)]!.action![1](); });
+  debitEl.querySelectorAll<HTMLButtonElement>('[data-g]').forEach((b) => { b.onclick = () => { const e = etapes[Number(b.dataset.g)]!; etape = e.id; try { localStorage.setItem('workshop3d.etape', etape); } catch { /* ignoré */ } refreshPanel(); e.action[1](); }; });
   debitEl.classList.add('open');
 }
 
@@ -2611,7 +2685,7 @@ const TOOLS: { id: Tool; icon: Icone; label: string; key: string; g: number }[] 
   { id: 'select', icon: 'pointer', label: 'Sélection', key: 'Espace', g: 0 },
   { id: 'adjust', icon: 'arrows-horizontal', label: 'Ajuster', key: 'A', g: 0 },
   { id: 'scale', icon: 'arrows-maximize', label: 'Échelle', key: 'S', g: 0 },
-  { id: 'open', icon: 'door', label: 'Ouvrir', key: 'I', g: 0 },
+  { id: 'open', icon: 'door', label: 'Portes', key: 'I', g: 0 },
   { id: 'line', icon: 'line', label: 'Ligne', key: 'L', g: 1 },
   { id: 'rect', icon: 'rectangle', label: 'Rectangle', key: 'R', g: 1 },
   { id: 'circle', icon: 'circle', label: 'Cercle', key: 'C', g: 1 },
@@ -2693,20 +2767,13 @@ async function start() {
   history = [snapshot()]; hIdx = 0;
   shown = doc;
   resize(); refresh(); setTool('select'); setHud(); setDirty(false);
-  let vu = false;
-  try { vu = localStorage.getItem('workshop3d.vu') === '1'; localStorage.setItem('workshop3d.vu', '1'); } catch { /* ignoré */ }
-  if (!vu && !doc.solids.length) openGuide();
   renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); labelRenderer.render(scene, camera); });
 }
 void start();
 
 // ───────── Assistant (MCP) ─────────
 // Le serveur MCP de la coque Tauri transmet ici les appels d'outils ; voir src/mcp.ts.
-function noter(msg: string) {
-  const el = document.getElementById('help')!;
-  el.textContent = `✦ Assistant : ${msg}. Cmd+Z pour annuler.`; el.style.color = '#2f6fd6';
-  setTimeout(() => { el.style.color = ''; el.textContent = HELP[tool]; }, 8000);
-}
+function noter(msg: string) { toast(`✦ ${msg}. Cmd+Z pour annuler.`, 7000); }
 // Image de la vue. Avec `v`, une vue normalisée cadrée sur tout le modèle, puis la caméra de l'utilisateur revient.
 function capture(v: VueMcp | undefined, largeur: number): string {
   const pos = camera.position.clone(), cible = controls.target.clone();
@@ -2780,9 +2847,9 @@ const assistant = creerAssistant({
   ctx: ctxMcp,
   lireCle: async () => tauri ? tauri.core.invoke<string | null>('cle_api') : cleMemoire,
   async ecrireCle(cle) { if (tauri) await tauri.core.invoke('definir_cle_api', { cle }); else cleMemoire = cle || null; },
-  surBascule: (ouvert) => document.getElementById('btn-assistant')!.classList.toggle('on', ouvert),
+  surBascule: (ouvert) => { assistantOuvert = ouvert; renderTopbar(); },
 });
-document.getElementById('btn-assistant')!.onclick = () => assistant.basculer();
+assistantRef = assistant;
 
 // Pour les tests dans la console
 (window as unknown as { workshop: unknown }).workshop = {

@@ -2,7 +2,7 @@
 // Elles ne connaissent du reste de l'app que ce contexte ; main.ts le fournit.
 import type { DebitRow } from '../kernel/debit';
 import { controler } from '../kernel/controle';
-import { listeCourses } from '../kernel/courses';
+import { listeCourses, type Ligne } from '../kernel/courses';
 import { piecesDe } from '../kernel/elements';
 import { cloneDoc, type Doc } from '../kernel/model';
 import { fichePercage } from '../kernel/percage';
@@ -17,6 +17,7 @@ export interface Feuille {
   montrer(ids: number[]): void;                 // sélectionne et cadre ces pièces
   fermer(): void;
   telecharger(texte: string, nom: string, ext: string): void;
+  ouvrirMateriaux?(): void;                     // ouvre « Matériaux et panneaux »
 }
 export const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const nombre = (v: string) => { const n = parseFloat(v.replace(',', '.')); return Number.isFinite(n) ? n : NaN; };
@@ -96,14 +97,35 @@ export function ouvrirPercage(f: Feuille) {
   lierImpression(f);
 }
 
-// ───────── Liste de courses ─────────
+// ───────── Courses et coût ─────────
+// Tout l'argent du projet au même endroit : panneaux (prix des formats), chant (prix au mètre), quincaillerie et divers.
+// Les prix sont modifiables ici ; les quantités de panneaux viennent de la découpe, celles de la quincaillerie des portes et tiroirs.
 export function ouvrirCourses(f: Feuille) {
   const { lignes, total } = listeCourses(f.doc(), f.fiche());
-  const rayons = [...new Set(lignes.map((l) => l.rayon))];
-  const corps = rayons.map((r) => `<h3>${r}</h3><table><thead><tr><th>Article</th><th>Qté</th><th>Prix unitaire</th><th>Total</th></tr></thead><tbody>${lignes.filter((l) => l.rayon === r).map((l) => `<tr><td>${esc(l.nom)}</td><td>${l.estimation ? '≈ ' : ''}${l.qte} ${l.unite}</td><td>${l.prix ? euro(l.prix) : '—'}</td><td>${l.prix ? euro(l.prix * l.qte) : '—'}</td></tr>`).join('')}</tbody></table>`).join('');
-  ouvrir(f, 'Liste de courses', `<button class="btn" data-csv>Export CSV</button>${imprimer}`, lignes.length ? corps : '<p>Rien à acheter pour l\'instant.</p>',
-    `<span><b>${euro(total)}</b> (articles chiffrés)</span><span class="note">Panneaux d'après l'optimisation de la découpe (stock déduit), chant + 10 %, quincaillerie de « Découpe et coût ». La visserie (≈) est une estimation : 4 vis par assemblage, 4 par charnière, 12 par paire de coulisses, 2 par poignée. Les prix se saisissent dans « Découpe et coût » et « Matériaux et couleurs ».</span>`);
+  const somme = (r: Ligne['rayon']) => lignes.filter((l) => l.rayon === r).reduce((t, l) => t + l.qte * l.prix, 0);
+  const rayons = (['Panneaux', 'Chant', 'Quincaillerie', 'Visserie'] as const).filter((r) => lignes.some((l) => l.rayon === r) || r === 'Quincaillerie');
+  const champ = (l: Ligne, k: string, v: string | number, cls: string, titre: string) => `<input class="${cls}" data-ref="${l.ref!.t}" data-id="${l.ref!.id}" data-k="${k}" value="${esc(String(v))}" aria-label="${titre}">`;
+  const ligne = (l: Ligne) => {
+    const modifiable = !!l.ref, libre = l.ref?.t === 'extras' && !l.auto;
+    const prix = modifiable ? `${champ(l, 'prix', l.prix, 'num', 'Prix unitaire')}${l.prix === 0 ? ' <span class="badge attention" title="Sans prix, cette ligne n\'est pas comptée dans le total">prix ?</span>' : ''}` : (l.prix ? euro(l.prix) : l.rayon === 'Visserie' ? '—' : '<span class="badge attention" title="Indique ce prix dans Matériaux et panneaux">prix ?</span>');
+    return `<tr><td>${libre ? champ(l, 'nom', l.nom, '', 'Désignation') : esc(l.nom)}</td><td>${libre ? champ(l, 'qte', l.qte, 'num', 'Quantité') : `${l.estimation ? '≈ ' : ''}${l.qte} ${l.unite}`}</td><td>${prix}</td><td>${l.prix ? euro(l.prix * l.qte) : '—'}</td><td>${libre ? `<button class="btn" data-delx="${l.ref!.id}" title="Supprimer cette ligne">×</button>` : ''}</td></tr>`;
+  };
+  const corps = rayons.map((r) => `<h3>${r}</h3>${r === 'Quincaillerie' && !lignes.some((l) => l.rayon === r) ? '<p class="note">Rien pour l\'instant. Les charnières, coulisses et poignées arrivent avec les portes et les tiroirs.</p>' : `<table><thead><tr><th>Article</th><th>Qté</th><th>Prix unitaire €</th><th>Total</th><th></th></tr></thead><tbody>${lignes.filter((l) => l.rayon === r).map(ligne).join('')}</tbody></table>`}${r === 'Quincaillerie' ? '<p><button class="btn" data-addx>+ Ligne</button></p>' : ''}`).join('');
+  ouvrir(f, 'Courses et coût', `${f.ouvrirMateriaux ? '<button class="btn" data-pans title="Formats, stock et prix d\'achat des panneaux, prix du chant">Panneaux et prix…</button>' : ''}<button class="btn" data-csv>Export CSV</button>${imprimer}`, corps,
+    `<span>Panneaux <b>${euro(somme('Panneaux'))}</b></span><span>Chant <b>${euro(somme('Chant'))}</b></span><span>Quincaillerie <b>${euro(somme('Quincaillerie'))}</b></span><span>Total <b>${euro(total)}</b> (articles chiffrés)</span><span class="note">Panneaux d'après la découpe (stock déduit), chant + 10 %. La visserie (≈) est une estimation : 4 vis par assemblage, 4 par charnière, 12 par paire de coulisses, 2 par poignée, sans prix.</span>`);
   lierImpression(f);
+  const edit = (fn: (d: Doc) => void) => { const d = cloneDoc(f.doc()); d.extras ??= []; d.stock ??= []; fn(d); f.appliquer(d, 'prix modifié'); ouvrirCourses(f); };
+  f.el.querySelector<HTMLElement>('[data-pans]')?.addEventListener('click', () => f.ouvrirMateriaux?.());
+  f.el.querySelectorAll<HTMLInputElement>('input[data-ref]').forEach((el) => {
+    el.onchange = () => edit((d) => {
+      const id = Number(el.dataset.id), v = Math.max(0, nombre(el.value) || 0);
+      if (el.dataset.ref === 'stock') { const p = d.stock!.find((x) => x.id === id); if (p) p.prix = v; }
+      else if (el.dataset.ref === 'chant') { const m = (d.methods ?? []).find((x) => x.id === id); if (m) m.chantPrix = v; }
+      else { const x = d.extras!.find((y) => y.id === id); if (x) { if (el.dataset.k === 'nom') x.nom = el.value; else if (el.dataset.k === 'qte') x.qte = v; else x.prix = v; } }
+    });
+  });
+  f.el.querySelector<HTMLElement>('[data-addx]')!.onclick = () => edit((d) => { d.extras!.push({ id: d.next++, nom: 'Nouvel article', qte: 1, prix: 0 }); });
+  f.el.querySelectorAll<HTMLElement>('[data-delx]').forEach((el) => { el.onclick = () => edit((d) => { d.extras = d.extras!.filter((x) => x.id !== Number(el.dataset.delx)); }); });
   f.el.querySelector<HTMLElement>('[data-csv]')!.onclick = () => {
     const q = (s: string) => `"${s.replace(/"/g, '""')}"`;
     const csv = ['Rayon;Article;Quantité;Unité;Prix unitaire;Total', ...lignes.map((l) => [q(l.rayon), q(l.nom), l.qte, q(l.unite), l.prix.toFixed(2), (l.prix * l.qte).toFixed(2)].join(';'))].join('\n');

@@ -70,7 +70,7 @@
   #panel .cotes p { margin: 0 0 6px; font-size: 11.5px; line-height: 1.4; opacity: .85; }
   .matiere-cell { display: flex; align-items: center; gap: 4px; }
   #debit input.couleur { width: 36px; height: 24px; padding: 0; border: 1px solid var(--line); cursor: pointer; }
-  #debit { position: fixed; inset: 0; background: #0006; display: none; place-items: center; padding: 24px; }
+  #debit { position: fixed; z-index: 10; inset: 0; background: #0006; display: none; place-items: center; padding: 24px; }
   #debit.open { display: grid; }
   #debit .sheet { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; width: min(1100px, 100%); max-height: 100%; display: flex; flex-direction: column; overflow: hidden; }
   #debit header { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); }
@@ -114,8 +114,9 @@
   #assistant .msg.systeme input { flex: 1; font: inherit; color: inherit; background: transparent; border: 1px solid var(--line); border-radius: 4px; padding: 3px 5px; }
   #assistant .saisie { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--line); align-items: flex-end; }
   #assistant textarea { flex: 1; resize: none; font: inherit; color: inherit; background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 6px; }
-  #btn-assistant { all: unset; cursor: pointer; padding: 0 8px; border: 1px solid var(--accent); color: var(--accent); border-radius: 4px; margin-right: 10px; }
-  #btn-assistant.on { background: var(--accent); color: #fff; }
+  #topbar .icone-btn.actif { background: #dbe8fd; color: #174ea6; }
+  #toast { position: fixed; top: calc(var(--top) + 10px); left: var(--rail); right: var(--side); margin: 0 auto; width: fit-content; max-width: 70%; padding: 8px 14px; background: var(--ink); color: var(--panel); border-radius: 10px; box-shadow: 0 4px 16px #0003; opacity: 0; pointer-events: none; transition: opacity .15s; z-index: 6; }
+  #toast.on { opacity: 1; }
 
   #topbar { position: fixed; top: 0; left: 0; right: 0; height: var(--top); display: flex; align-items: center; gap: 10px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); z-index: 4; }
   #topbar .marque { white-space: nowrap; display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; }
@@ -150,10 +151,65 @@
   button.action .t { font-weight: 500; }
   button.action .d { font-size: 12px; opacity: .7; margin-top: 1px; }
   button.action svg.ico { width: 22px; height: 22px; }
+  #debit .mat { border: 1px solid var(--line); border-radius: 10px; margin: 10px 14px; padding: 10px 12px; }
+  #debit .mat-tete { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #debit .mat-tete .nom { flex: 1; min-width: 140px; width: auto; font-weight: 500; }
+  #debit .mat-tete input.couleur { width: 34px; height: 28px; padding: 0; border: 1px solid var(--line); cursor: pointer; flex: none; }
+  #debit .mat-tete select { width: 230px; }
+  #debit .mat-tete .src { opacity: .65; white-space: nowrap; }
+  #debit .mat-corps { display: flex; gap: 16px; margin-top: 10px; align-items: flex-start; }
+  #debit .mat-chants { display: flex; flex-direction: column; gap: 2px; align-items: center; flex: none; width: 84px; }
+  svg.chants { width: 72px; height: auto; display: block; }
+  svg.chants .face { fill: var(--bg); stroke: var(--line); }
+  svg.chants .cote { fill: transparent; stroke: var(--line); cursor: pointer; }
+  svg.chants .cote:hover { fill: var(--hover); }
+  svg.chants .cote.on { fill: var(--accent); stroke: var(--accent); }
+  #debit .mat-panneau { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  #debit .mat-panneau > label { display: flex; gap: 8px; align-items: center; }
+  #debit .mat-panneau > label input { flex: 1; width: auto; }
+  #debit .formats table { width: 100%; }
+  #debit .formats input.num { width: 76px; }
+  #debit .formats p { margin: 4px 0; }
+  #debit .mat-chant-avance { display: flex; gap: 14px; margin-top: 8px; flex-wrap: wrap; }
+  #debit .mat-chant-avance input { width: 120px; }
+  details.reglages { padding: 2px 0 6px; } details.reglages summary { cursor: pointer; opacity: .8; }
+  .carte-tete { display: flex; gap: 8px; align-items: center; }
+  .carte-tete input { flex: 1; min-width: 0; font: inherit; font-weight: 500; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 3px 5px; }
+  .carte-tete input:hover, .carte-tete input:focus { border-color: var(--line); }
+  .ligne-chants { display: flex; gap: 14px; align-items: center; }
+  .ligne-chants select { flex: 1; min-width: 0; }
+  #panel .ligne-chants label { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+  details.plus { border-top: 1px solid var(--line); padding-top: 6px; }
+  details.plus > summary { cursor: pointer; opacity: .8; list-style: none; display: flex; align-items: center; gap: 6px; }
+  details.plus > summary::before { content: '▸'; font-size: 10px; transition: transform .1s; }
+  details.plus[open] > summary::before { transform: rotate(90deg); }
+  details.plus > :not(summary) { margin-top: 8px; }
+  #panel details.plus label { grid-template-columns: 110px 1fr; }
+  #panel .cotes p { margin: 0 0 6px; }
+  .deux-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; padding: 0 12px 12px; }
+  table.raccourcis { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.raccourcis td { padding: 3px 4px; border-top: 1px solid var(--line); }
+  table.raccourcis td:last-child { text-align: right; white-space: nowrap; }
+  kbd { font: 11.5px ui-monospace, monospace; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 5px; background: var(--bg); }
+  .meuble { display: flex; flex-direction: column; gap: 12px; }
+  .meuble-tete { display: flex; justify-content: space-between; align-items: baseline; }
+  .meuble .modeles { display: flex; flex-wrap: wrap; gap: 4px; }
+  .meuble .grp { display: flex; flex-direction: column; gap: 8px; }
+  .meuble .f3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  #panel .meuble label.f { display: flex; flex-direction: column; align-items: stretch; gap: 3px; font-size: 12px; }
+  #panel .meuble label.f input.num { width: 100%; }
+  #panel .meuble label.f > span:first-child { opacity: .75; }
+  #panel .meuble label.coche { display: flex; gap: 8px; align-items: center; }
+  #panel .meuble label.coche input[type=checkbox] { width: auto; }
+  #panel .meuble .colonne input, #panel .meuble .colonne select { width: 100%; min-width: 0; }
+  .meuble .colonne { display: grid; grid-template-columns: 18px 1fr 76px; gap: 6px; align-items: center; }
+  .meuble .colonne > span { opacity: .6; text-align: center; }
+  .meuble .puces { margin-top: -2px; }
+  .meuble-pied { position: sticky; bottom: -12px; display: flex; justify-content: flex-end; gap: 8px; padding: 10px 0 2px; background: var(--panel); border-top: 1px solid var(--line); }
   .selbox { position: absolute; display: none; pointer-events: none; border: 1px solid #1a73e8; background: #1a73e81a; z-index: 2; }
   .cote { background: #1a73e8; color: #fff; font: 600 12px system-ui, sans-serif; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
   @media print { body > *:not(#debit) { display: none !important; } #debit { position: static; background: none; display: block !important; padding: 0; } #debit .sheet { border: 0; width: 100%; } #debit header button, #debit td button, #debit .col-act { display: none !important; } #debit input, #debit select { border: 0; appearance: none; } }
-  @media (prefers-color-scheme: dark) { :root { --bg: #1e1f22; --panel: #2b2d30; --line: #43454a; --ink: #e6e6e6; } #toolbar button:hover, #viewbar button:hover, #topbar .icone-btn:hover, #topbar .etapes button:hover, #menu-plus button:hover, button.action:hover { background: #3a3d42; } :root { --hover: #3a3d42; } #viewbar button.on { background: #27406b; color: #cfe0ff; } .conseil { background: #1e1f22; } button.action.primaire { background: #e6e6e6; color: #1e1f22; } #toolbar button.on { background: #27406b; } #hud b { background: #1e1f22; } #assistant .msg.moi { background: #27406b; } button.puce:hover { background: #3a3d42; } button.puce.on { background: #27406b; } button.btn:hover { background: #3a3d42; } .badge.erreur { background: #5c1e19; color: #ffb4ab; } .badge.attention { background: #4d3b00; color: #ffd970; } svg.percage .pan { fill: #34363a; stroke: #aaa; } }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1e1f22; --panel: #2b2d30; --line: #43454a; --ink: #e6e6e6; } #toolbar button:hover, #viewbar button:hover, #topbar .icone-btn:hover, #topbar .etapes button:hover, #menu-plus button:hover, button.action:hover { background: #3a3d42; } :root { --hover: #3a3d42; } #viewbar button.on, #topbar .icone-btn.actif { background: #27406b; color: #cfe0ff; } svg.chants .cote:hover { fill: #3a3d42; } #toast { background: #e6e6e6; color: #1e1f22; } .conseil { background: #1e1f22; } button.action.primaire { background: #e6e6e6; color: #1e1f22; } #toolbar button.on { background: #27406b; } #hud b { background: #1e1f22; } #assistant .msg.moi { background: #27406b; } button.puce:hover { background: #3a3d42; } button.puce.on { background: #27406b; } button.btn:hover { background: #3a3d42; } .badge.erreur { background: #5c1e19; color: #ffb4ab; } .badge.attention { background: #4d3b00; color: #ffd970; } svg.percage .pan { fill: #34363a; stroke: #aaa; } }
 </style>
 </head>
 <body>
@@ -161,11 +217,12 @@
 <div id="menu-plus"></div>
 <div id="app"></div>
 <div id="viewbar"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 <div id="toolbar"></div>
 <div id="panel"></div>
 <div id="debit"></div>
 <div id="assistant"></div>
-<div id="status"><span id="help"></span><span><button id="btn-assistant" title="Assistant Claude intégré">✦ Assistant</button><span id="hud"></span></span></div>
+<div id="status"><span id="help"></span><span><span id="hud"></span></span></div>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

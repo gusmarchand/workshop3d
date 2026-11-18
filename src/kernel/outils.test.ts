@@ -103,6 +103,18 @@ describe('perçage, courses, repères', () => {
     expect(l.find((x) => x.nom.includes('charnières'))!.qte).toBe(8);
     expect(l.find((x) => x.rayon === 'Quincaillerie' && x.nom.startsWith('Charnières'))!.prix).toBe(3);
   });
+  it('liste de courses : chaque prix modifiable renvoie à sa source (format du stock, quincaillerie, chant)', () => {
+    const { d } = meuble();
+    const q = listeCourses(d, syncFromModel(d, [], 1)).lignes.find((x) => x.rayon === 'Quincaillerie' && x.nom.startsWith('Charnières'))!;
+    expect(q.ref).toEqual({ t: 'extras', id: d.extras!.find((x) => x.nom.startsWith('Charnières'))!.id });
+    // les articles calculés à partir des portes et tiroirs ne se modifient que par leur prix, jamais leur quantité
+    expect(q.auto === true).toBe(d.extras!.find((x) => x.nom.startsWith('Charnières'))!.auto === true);
+    // la visserie est une estimation sans source de prix
+    expect(listeCourses(d, syncFromModel(d, [], 1)).lignes.filter((x) => x.rayon === 'Visserie').every((x) => !x.ref)).toBe(true);
+    d.stock = [{ id: 77, matiere: 'Mélaminé blanc 19', e: 19, L: 2800, l: 2070, qte: 0, prix: 62 }];
+    const p = listeCourses(d, syncFromModel(d, [], 1)).lignes.find((x) => x.rayon === 'Panneaux');
+    if (p) expect(p.ref).toEqual({ t: 'stock', id: 77 });
+  });
   it('repères : chaque pièce reçoit la référence de sa ligne de fiche', () => {
     const { d } = meuble();
     const refs = refsDesPieces(d, syncFromModel(d, [], 1));

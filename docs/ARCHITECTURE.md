@@ -79,6 +79,12 @@ Un `Element` est une porte (une pièce) ou un tiroir (façade et pièces du cais
 - `plafond.ts` : plan en pente, vérification que pièces et portes ouvertes restent dessous.
 - `percage.ts` : trous dans le repère de la porte vue de face. `courses.ts` : liste d'achat.
 
+## Matériaux, panneaux et coût
+
+Le matériau (`Materiau`) et le panneau acheté (`Panneau`, le stock) se règlent dans **une seule fenêtre**, `src/ui/materiaux.ts` : une carte par matériau (couleur, décor, bords plaqués par schéma cliquable `src/ui/chants.ts`, panneau acheté) avec, dessous, les formats du stock de ce panneau (épaisseur, longueur, largeur, quantité en stock, prix). Le lien matériau → stock est le nom du panneau acheté (`Materiau.matiere`, comparé sans casse). Renommer un panneau renomme ses formats. Les pièces dont la matière n'a pas de matériau apparaissent à part.
+
+Le plan de découpe (`renderDecoupe` dans `main.ts`) ne contient plus ni stock ni prix : il renvoie vers « Matériaux et panneaux » et « Courses et coût ». **L'argent est dans `ouvrirCourses`** (`src/ui/feuilles.ts`, sur `listeCourses`) : chaque ligne de `Ligne` porte une `ref` (format du stock, ligne de quincaillerie, chant d'un matériau) pour que son prix se modifie là où on le lit.
+
 ## Matériaux et décors
 
 Un matériau porte le panneau acheté (clé du stock), une couleur unique pour les faces et les chants, et un `decor` optionnel : `uni`, `bois`, `lamelle`, `contreplaque`, `mdf`, `tissu`. Sans décor, `decorParNom` le devine d'après le nom. **Affichage seulement** : la fiche, la découpe et l'export Collada ne changent pas.
@@ -105,6 +111,8 @@ Les commandes Tauri : `open_doc`, `save_doc`, `confirm_discard`, `cle_api`, `def
 Disposition : barre du haut (`#topbar` : projet, quatre étapes, ouvrir, enregistrer, menu), colonne d'outils (`#toolbar`), vue 3D (`#app`, entre les barres), panneau de droite (`#panel`), barre de vue flottante (`#viewbar`), barre d'aide (`#status`). Les tailles viennent de variables CSS (`--top`, `--rail`, `--side`, `--status`) ; le canevas se redimensionne sur `#app`. `refreshPanel()` reconstruit le panneau (carte de la sélection, puis `actionsEtape()` selon `etape`), la barre du haut (`renderTopbar`) et la barre de vue (`renderViewbar`) ; les boutons gardent leurs identifiants (`p-debit`, `f-save`…) et sont branchés par `on(id, …)`, où qu'ils soient dans la page. Icônes : `src/ui/icones.ts` (Tabler, MIT), à ajouter à la liste avant de les utiliser.
 
 Sections, dans l'ordre du fichier : état et historique, fichiers, Collada, scène (`rebuild` reconstruit toute la scène depuis le document), pointage et accroches, outils (sélection, déplacer, rotation, mètre, pousser/tirer, dessin), outils Ajuster et Échelle, presse-papiers, masquage, clavier, panneau de propriétés, fenêtres annexes, portes et tiroirs (outil Ouvrir), fiche de débit, découpe, assistant de caisson, guide des premiers pas.
+
+Le formulaire « Nouveau meuble » (`renderCaisson`) n'est plus une fenêtre : il occupe le panneau de droite (`caissonOuvert` : `refreshPanel` le laisse en place) et dessine un **aperçu translucide** du meuble dans la scène (`majApercu`, groupe `apercuGroup`), en réutilisant `genererCaisson` et `maillePanneau`. Les pièces du meuble modifié sont masquées pendant l'édition. Le Guide (`openGuide`) reprend les quatre étapes et les raccourcis ; l'avancement d'une étape (`etapeFaite`) vient de gestes mémorisés (`marquer`).
 
 L'état est global au module (une trentaine de variables) : un outil est un ensemble de fonctions `clic…`, `bouger…`, `fin…` branchées sur `onDown` / `onMove`, avec Échap pour annuler (`cancelOp`). Le document change toujours par `doc = nouvelDoc` puis `commit()`, qui alimente l'historique, la sauvegarde locale et le titre de la fenêtre.
 

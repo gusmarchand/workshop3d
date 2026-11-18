@@ -1,6 +1,7 @@
 // Icônes de l'interface : Tabler Icons (MIT, https://tabler.io/icons), importées en texte SVG par Vite et compilées dans le paquet.
 // `ico('plus')` rend le SVG ; sa taille et sa couleur viennent du CSS (`svg.ico`, currentColor).
 import pencil from '@tabler/icons/outline/pencil.svg?raw';
+import sparkles from '@tabler/icons/outline/sparkles.svg?raw';
 import pointer from '@tabler/icons/outline/pointer.svg?raw';
 import arrowsHorizontal from '@tabler/icons/outline/arrows-horizontal.svg?raw';
 import arrowsMaximize from '@tabler/icons/outline/arrows-maximize.svg?raw';
@@ -40,6 +41,7 @@ import upload from '@tabler/icons/outline/upload.svg?raw';
 import x from '@tabler/icons/outline/x.svg?raw';
 
 const ICONES = {
+  'sparkles': sparkles,
   'pencil': pencil,
   'pointer': pointer,
   'arrows-horizontal': arrowsHorizontal,

@@ -3,7 +3,9 @@ import type { DebitRow } from './debit';
 import { meshBounds, materiauDe, pieceDims, REGLAGES_DEFAUT, sidesOf, type Doc } from './model';
 import { planDecoupe } from './nesting';
 
-export interface Ligne { rayon: 'Panneaux' | 'Chant' | 'Quincaillerie' | 'Visserie'; nom: string; qte: number; unite: string; prix: number; estimation?: boolean }
+// `ref` : d'où vient le prix, pour pouvoir le modifier dans la liste (format de panneau du stock, ligne de quincaillerie, chant d'un matériau).
+export type RefLigne = { t: 'stock' | 'extras' | 'chant'; id: number };
+export interface Ligne { rayon: 'Panneaux' | 'Chant' | 'Quincaillerie' | 'Visserie'; nom: string; qte: number; unite: string; prix: number; estimation?: boolean; ref?: RefLigne; auto?: boolean }
 
 // Liaisons entre pièces : deux pièces qui se touchent sur une surface d'au moins 5 mm dans chaque sens (un chant de panneau suffit).
 export function liaisons(d: Doc): number {
@@ -24,29 +26,29 @@ export function listeCourses(d: Doc, rows: DebitRow[]): { lignes: Ligne[]; total
   const lignes: Ligne[] = [];
   const plan = planDecoupe(rows, d.stock ?? [], d.reglages ?? REGLAGES_DEFAUT);
   for (const g of plan.groupes) {
-    const formats = new Map<string, { n: number; prix: number }>();
+    const formats = new Map<string, { n: number; prix: number; id: number }>();
     for (const b of g.plan.bins.filter((x) => x.achat)) {
       const k = `${g.matiere} ${b.panneau.L} × ${b.panneau.l} × ${g.e}`;
-      const f = formats.get(k) ?? { n: 0, prix: b.panneau.prix };
+      const f = formats.get(k) ?? { n: 0, prix: b.panneau.prix, id: b.panneau.id };
       f.n++; formats.set(k, f);
     }
-    for (const [nom, f] of formats) lignes.push({ rayon: 'Panneaux', nom, qte: f.n, unite: 'panneau', prix: f.prix });
+    for (const [nom, f] of formats) lignes.push({ rayon: 'Panneaux', nom, qte: f.n, unite: 'panneau', prix: f.prix, ref: { t: 'stock', id: f.id } });
     for (const m of g.manques) lignes.push({ rayon: 'Panneaux', nom: `${g.matiere} ${m.L} × ${m.l} × ${g.e} (prix à saisir)`, qte: m.n, unite: 'panneau', prix: 0 });
   }
-  const chants = new Map<string, { m: number; prix: number }>();
+  const chants = new Map<string, { m: number; prix: number; id?: number }>();
   for (const s of d.solids) {
     if (!s.meta.piece) continue;
     const meth = materiauDe(d, s), sides = sidesOf(d, s);
     if (!sides.length) continue;
     const dim = pieceDims(s.mesh), nL = sides.filter((k) => k[0] === 'L').length;
     const nom = `Chant ${meth?.chant || 'assorti'} (${meth?.nom ?? s.meta.matiere})`;
-    const c = chants.get(nom) ?? { m: 0, prix: meth?.chantPrix ?? 0 };
+    const c = chants.get(nom) ?? { m: 0, prix: meth?.chantPrix ?? 0, ...(meth ? { id: meth.id } : {}) };
     c.m += nL * dim.L + (sides.length - nL) * dim.l;
     chants.set(nom, c);
   }
   // 10 % de plus pour les chutes et les coupes d'onglet, arrondi au mètre
-  for (const [nom, c] of chants) lignes.push({ rayon: 'Chant', nom, qte: Math.ceil(c.m * 1.1), unite: 'm', prix: c.prix });
-  for (const x of d.extras ?? []) lignes.push({ rayon: 'Quincaillerie', nom: x.nom, qte: x.qte, unite: 'u', prix: x.prix });
+  for (const [nom, c] of chants) lignes.push({ rayon: 'Chant', nom, qte: Math.ceil(c.m * 1.1), unite: 'm', prix: c.prix, ...(c.id !== undefined ? { ref: { t: 'chant' as const, id: c.id } } : {}) });
+  for (const x of d.extras ?? []) lignes.push({ rayon: 'Quincaillerie', nom: x.nom, qte: x.qte, unite: 'u', prix: x.prix, ref: { t: 'extras', id: x.id }, ...(x.auto ? { auto: true } : {}) });
   const q = (re: RegExp) => (d.extras ?? []).filter((x) => re.test(x.nom)).reduce((t, x) => t + x.qte, 0);
   const vis: [string, number][] = [
     ['Vis d\'assemblage 4 × 40 (ou tourillons et excentriques)', 4 * liaisons(d)],
