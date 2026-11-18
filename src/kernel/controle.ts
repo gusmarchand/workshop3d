@@ -1,6 +1,6 @@
 // Contrôle du projet avant de couper : ce que l'œil rate sur la 3D.
-import { elementDe, ferrures, piecesDe, repere } from './elements';
-import { meshBounds, materiauDe, volumeCommun, type Doc, type Solid } from './model';
+import { appliquerPose, elementDe, ferrures, piecesDe, poseOuverte, repere, type Element } from './elements';
+import { meshBounds, materiauDe, volumeCommun, type Doc, type MeshData, type Solid } from './model';
 import { balayagePlafond, piecesSousPlafond, type Plafond } from './plafond';
 
 export interface Probleme { niveau: 'erreur' | 'attention'; message: string; ids: number[] }
@@ -50,6 +50,41 @@ export function porteeLibre(d: Doc, t: Solid): { portee: number; porteAFaux: num
   return { portee, porteAFaux: Math.max(appuis[0]![0] - b.min[long]!, b.max[long]! - fin), fixe };
 }
 
+// Portes ouvertes : chaque porte balaie son ouverture (quatre pas) ; elle ne doit toucher ni une pièce fixe,
+// ni une autre porte ouverte au même moment (deux portes charnières côte à côte, aux joints entre meubles).
+// Retourne pour chaque couple le premier pas en collision, en degrés.
+export function collisionsOuverture(d: Doc): { porte: Element; autre: Solid | Element; angle: number; volume: number }[] {
+  const PAS = 4, SEUIL = 5e-7;
+  const portes = (d.elements ?? []).filter((e) => e.type === 'porte');
+  const piecesPortes = new Set(portes.flatMap((e) => piecesDe(e)));
+  const fixes = d.solids.filter((s) => !s.meta.masque && !piecesPortes.has(s.id)).map((s) => ({ s, b: meshBounds(s.mesh) }));
+  const sortie: { porte: Element; autre: Solid | Element; angle: number; volume: number }[] = [];
+  const vus = new Set<string>();
+  for (let k = 1; k <= PAS; k++) {
+    const ouvertes = portes.flatMap((el) => {
+      const s = d.solids.find((x) => x.id === piecesDe(el)[0]), pose = poseOuverte(d, el, k / PAS);
+      if (!s || s.meta.masque || !pose) return [];
+      const v: number[] = [];
+      for (let i = 0; i < s.mesh.v.length; i += 3) v.push(...appliquerPose(pose, [s.mesh.v[i]!, s.mesh.v[i + 1]!, s.mesh.v[i + 2]!]));
+      const mesh: MeshData = { v, t: s.mesh.t };
+      return [{ el, mesh, b: meshBounds(mesh), angle: Math.round((k / PAS) * el.ouverture) }];
+    });
+    const touche = (a: MeshData, ab: ReturnType<typeof meshBounds>, b: MeshData, bb: ReturnType<typeof meshBounds>) =>
+      [0, 1, 2].every((i) => recouvre(ab, bb, i) > 0.0002) ? volumeCommun(a, b) : 0;
+    ouvertes.forEach((o, i) => {
+      for (const f of fixes) {
+        const cle = `${o.el.id}:s${f.s.id}`, vol = vus.has(cle) ? 0 : touche(o.mesh, o.b, f.s.mesh, f.b);
+        if (vol > SEUIL) { vus.add(cle); sortie.push({ porte: o.el, autre: f.s, angle: o.angle, volume: vol }); }
+      }
+      for (const p of ouvertes.slice(i + 1)) {
+        const cle = `${o.el.id}:e${p.el.id}`, vol = vus.has(cle) ? 0 : touche(o.mesh, o.b, p.mesh, p.b);
+        if (vol > SEUIL) { vus.add(cle); sortie.push({ porte: o.el, autre: p.el, angle: Math.max(o.angle, p.angle), volume: vol }); }
+      }
+    });
+  }
+  return sortie;
+}
+
 export function controler(d: Doc, plafond?: Plafond): Probleme[] {
   const out: Probleme[] = [];
   const vis = d.solids.filter((s) => !s.meta.masque);
@@ -77,6 +112,13 @@ export function controler(d: Doc, plafond?: Plafond): Probleme[] {
     if (alerte) out.push({ niveau: 'erreur', message: `« ${main.name} » : ${alerte.cote.split('⚠')[1]!.trim()}`, ids });
     if (el.type === 'tiroir' && !el.pieces.length) out.push({ niveau: 'attention', message: `Tiroir « ${main.name} » sans caisson : seule la façade est identifiée.`, ids });
     if (el.type === 'porte' && repere(d, main, ids, el.sens).e < 0.008) out.push({ niveau: 'attention', message: `« ${main.name} » : moins de 8 mm d'épaisseur.`, ids });
+  }
+  // portes qui se gênent en s'ouvrant
+  const nomDe = (e: Element) => d.solids.find((x) => x.id === piecesDe(e)[0])?.name ?? e.type;
+  for (const c of collisionsOuverture(d)) {
+    const autre = 'type' in c.autre ? `la porte « ${nomDe(c.autre)} »` : `« ${c.autre.name} »`;
+    const ids = [...piecesDe(c.porte), ...('type' in c.autre ? piecesDe(c.autre) : [c.autre.id])];
+    out.push({ niveau: 'attention', message: `« ${nomDe(c.porte)} » touche ${autre} en s'ouvrant (vers ${c.angle}°) : limite l'ouverture (charnière bridée à 90°) ou écarte les portes.`, ids });
   }
   // plafond
   if (plafond) {

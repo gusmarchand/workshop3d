@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { boxMesh, emptyDoc, initKernel, prismMesh, type Doc, type Solid, type V3 } from './model';
 import { plafondDepuisPiece, hauteurPlafond, piecesSousPlafond, balayagePlafond, type Plafond } from './plafond';
-import { controler, porteeLibre } from './controle';
+import { collisionsOuverture, controler, porteeLibre } from './controle';
 import { fichePercage } from './percage';
 import { liaisons, listeCourses } from './courses';
 import { refsDesPieces, syncFromModel } from './debit';
@@ -52,6 +52,19 @@ describe('contrôle', () => {
     expect(p.some((x) => x.niveau === 'erreur' && x.message.includes('se traversent'))).toBe(true);
     expect(p.some((x) => x.message.includes('entre deux appuis'))).toBe(true);
     expect(p.some((x) => x.message.includes('sans matériau'))).toBe(true);
+  });
+
+  it('deux portes aux charnières côte à côte se traversent à 110°, pas à 90°', () => {
+    const d = emptyDoc();
+    const a = piece(d, 'Porte A', [-18, 0, 100], [0, 497, 1600]), b = piece(d, 'Porte B', [-18, 503, 100], [0, 1000, 1600]);
+    const el = (id: number, piece: number, charnieres: 'gauche' | 'droite', ouverture: number): Porte => ({ id, type: 'porte', piece, charnieres, recouvrement: 'applique', ouverture, entraxe: 128 });
+    d.elements = [el(50, a.id, 'droite', 110), el(51, b.id, 'gauche', 110)];      // vu depuis -X : « droite » = Y haut
+    expect(controler(d).filter((x) => x.message.includes('en s\'ouvrant'))).toHaveLength(1);
+    expect(collisionsOuverture(d)[0]).toMatchObject({ angle: 110 });
+    d.elements = [el(50, a.id, 'droite', 90), el(51, b.id, 'gauche', 90)];
+    expect(collisionsOuverture(d)).toHaveLength(0);
+    d.elements = [el(50, a.id, 'gauche', 110), el(51, b.id, 'droite', 110)];      // charnières vers l'extérieur
+    expect(collisionsOuverture(d)).toHaveLength(0);
   });
 
   it('pas d\'alerte de portée pour le dessus ou le dessous d\'un caisson', () => {
